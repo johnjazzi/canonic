@@ -38,7 +38,7 @@
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { ChevronRight, FileText } from 'lucide-vue-next'
 
 const props = defineProps({

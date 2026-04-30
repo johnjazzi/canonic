@@ -44,7 +44,7 @@
 
 <script setup>
 import { ref, nextTick, onUnmounted } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { v4 as uuidv4 } from 'uuid'
 import { Sparkles, SendHorizonal } from 'lucide-vue-next'
 

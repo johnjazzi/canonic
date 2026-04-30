@@ -22,7 +22,7 @@
 
 <script setup>
 import { inject } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import TreeNode from './TreeNode.vue'
 import { FilePlus } from 'lucide-vue-next'
 

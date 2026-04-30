@@ -8,22 +8,14 @@
 
 ---
 
-## Document Browser
-
+## Features
+- [ ] **add logo to electron app**  
+- [ ] **[tech]** reffactor the /components so its not all flat. Put them in folders.
+- [ ] **show commits** we want to be able to make checkpoint commits per file. maybe its already doing that idk. need to definitely show that there is uncommited changes. 
 - [ ] **Collapsible sidebar** — toggle button collapses left sidebar to icon-only strip (~40px); persist state in localStorage. *(MainLayout + FileTree, UI only)*
 - [ ] **Create directories** — "New folder" option in FileTree "+" menu; writes `.gitkeep`; rename works on directory nodes. *(FileTree + TreeNode + `files:mkdir` IPC)*
 - [ ] **Shared / connected documents in browser** — peer docs section with display name, last-synced timestamp, online/offline indicator; clicking opens read-only from `~/.canonic/peers/`; refresh triggers `git fetch`. *(PeersPanel + peer sync in share.js + mDNS in main.js)*
-
----
-
-## Sharing
-
 - [ ] **Sharing version radio** — when sharing a doc or workspace, let the user choose what the recipient sees: *Current WIP* (live file on disk), *Last committed* (HEAD of current branch), or *Main only* (always the `main` branch). Stored in `sharingDefaults` config and overridable per-share in ShareModal. *(ShareModal + share.js + config)*
-
----
-
-## AI Agent
-
 - [ ] **Pre-index workspace docs on every AI call** — gather full text of every `.md` file, pass as `<workspace>` XML block in system prompt (~500 tokens/file, cap ~80k total). *(AIChat.vue — expand `docContext`)*
 - [ ] **Agent reads docs on demand (tool use)** — expose `read_document` tool; input `{ "path": "..." }`; result fetched via `files:read` IPC. *(AIChat.vue tool-use loop)*
 - [ ] **Agent web search** — `web_search` tool calling Brave/Tavily from main process; results quoted with source URLs; per-session toggle for privacy. *(electron/main.js + AIChat.vue tool-use loop)*

@@ -66,7 +66,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { MilkdownProvider } from '@milkdown/vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { v4 as uuidv4 } from 'uuid'
 import { MessageSquarePlus } from 'lucide-vue-next'
 import MilkdownEditor from './MilkdownEditor.vue'

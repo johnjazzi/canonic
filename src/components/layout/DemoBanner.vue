@@ -9,7 +9,7 @@
 </template>
 
 <script setup>
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { useRouter } from 'vue-router'
 
 const store = useAppStore()

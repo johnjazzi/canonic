@@ -67,7 +67,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { Info, TriangleAlert } from 'lucide-vue-next'
 
 const emit = defineEmits(['close'])

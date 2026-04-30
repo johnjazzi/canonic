@@ -38,7 +38,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 
 const store = useAppStore()
 const viewingOid = ref(null)

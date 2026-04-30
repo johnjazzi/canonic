@@ -37,7 +37,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { Search } from 'lucide-vue-next'
 
 const store = useAppStore()

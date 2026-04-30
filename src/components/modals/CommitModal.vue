@@ -33,7 +33,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()

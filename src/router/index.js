@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import WorkspaceSetup from '../components/WorkspaceSetup.vue'
-import MainLayout from '../components/MainLayout.vue'
+import WorkspaceSetup from '../components/layout/WorkspaceSetup.vue'
+import MainLayout from '../components/layout/MainLayout.vue'
 import { useAppStore } from '../store'
 
 const routes = [

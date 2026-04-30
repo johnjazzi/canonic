@@ -125,7 +125,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 
 const emit = defineEmits(['done'])
 const router = useRouter()

@@ -42,7 +42,7 @@
 </template>
 
 <script setup>
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { FileText } from 'lucide-vue-next'
 
 const store = useAppStore()

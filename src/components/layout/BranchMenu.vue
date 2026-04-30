@@ -56,7 +56,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import { GitBranch, Check, GitMerge } from 'lucide-vue-next'
 
 const emit = defineEmits(['close'])

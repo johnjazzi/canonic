@@ -49,7 +49,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 
 const store = useAppStore()
 const showResolved = ref(false)

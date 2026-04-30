@@ -120,9 +120,9 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAppStore } from '../store'
+import { useAppStore } from '../../store'
 import SetupScreen from './SetupScreen.vue'
-import SettingsModal from './SettingsModal.vue'
+import SettingsModal from '../modals/SettingsModal.vue'
 import { Folder, FolderPlus, FolderOpen, Sparkles } from 'lucide-vue-next'
 
 const router = useRouter()
