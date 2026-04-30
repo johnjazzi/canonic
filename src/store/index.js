@@ -13,22 +13,43 @@ export const useAppStore = defineStore('app', () => {
   const commitLog = ref([])
   const comments = ref([])
   const isDirty = ref(false)
+  const fileIsUncommitted = ref(false)
   const isLoading = ref(false)
   const shareInfo = ref(null)
   const searchResults = ref([])
   const config = ref(null)
-  const sidebarTab = ref('files') // 'files' | 'search' | 'peers'
-  const rightPanelTab = ref('comments') // 'comments' | 'ai' | 'history'
-
-  // Per-doc named versions (stored in workspace/.canonic/versions.json)
+  const sidebarTab = ref('files')
+  const rightPanelTab = ref('comments')
   const docVersions = ref([])
+  const docBranchMap = ref({}) // { 'path/to/file.md': { activeBranch: 'branch', branches: ['branch'] } }
 
-  // Demo mode — config loaded at runtime from public/demo/config.json
+  const trashItems = ref([])
+
   const isDemoMode = ref(false)
   const demoPeers = ref([])
-  const _demoComments = ref({}) // keyed by file path
+  const _demoComments = ref({})
 
   const api = window.canonic
+
+  // Active branch for the current document (defaults to 'main' if not in map)
+  const currentDocBranch = computed(() => {
+    if (!currentFile.value) return currentBranch.value
+    return docBranchMap.value[currentFile.value]?.activeBranch || 'main'
+  })
+
+  function getDocBranches(filePath) {
+    return docBranchMap.value[filePath]?.branches || []
+  }
+
+  async function loadDocBranchMap() {
+    if (!workspacePath.value) { docBranchMap.value = {}; return }
+    docBranchMap.value = await api.docBranches.get(workspacePath.value)
+  }
+
+  async function saveDocBranchMap() {
+    if (!workspacePath.value) return
+    await api.docBranches.set(workspacePath.value, docBranchMap.value)
+  }
 
   async function loadConfig() {
     config.value = await api.config.read()
@@ -57,6 +78,8 @@ export const useAppStore = defineStore('app', () => {
       comments.value = []
       await refreshFiles()
       await refreshBranches()
+      await loadDocBranchMap()
+      await loadTrash()
     } finally {
       isLoading.value = false
     }
@@ -65,16 +88,92 @@ export const useAppStore = defineStore('app', () => {
   async function renameFile(oldPath, newName) {
     if (!workspacePath.value) return
     const dir = oldPath.includes('/') ? oldPath.split('/').slice(0, -1).join('/') : ''
-    const newPath = dir ? `${dir}/${newName}.md` : `${newName}.md`
-    const content = await api.files.read(workspacePath.value, oldPath)
-    await api.files.write(workspacePath.value, newPath, content)
-    await api.files.delete(workspacePath.value, oldPath)
-    // If it was open, switch to new path
+    const cleanName = newName.endsWith('.md') ? newName : `${newName}.md`
+    const newPath = dir ? `${dir}/${cleanName}` : cleanName
+    await api.files.move(workspacePath.value, oldPath, newPath)
     if (currentFile.value === oldPath) {
       currentFile.value = newPath
+      if (docBranchMap.value[oldPath]) {
+        docBranchMap.value[newPath] = docBranchMap.value[oldPath]
+        delete docBranchMap.value[oldPath]
+        await saveDocBranchMap()
+      }
     }
     await refreshFiles()
     return newPath
+  }
+
+  async function deleteFile(filePath) {
+    if (!workspacePath.value) return
+    await api.files.trash.delete(workspacePath.value, filePath, false)
+    if (currentFile.value === filePath) {
+      currentFile.value = null
+      currentContent.value = ''
+      isDirty.value = false
+      fileIsUncommitted.value = false
+      commitLog.value = []
+      docVersions.value = []
+      comments.value = []
+    }
+    await refreshFiles()
+    await loadTrash()
+  }
+
+  async function createDirectory(dirPath) {
+    if (!workspacePath.value) return
+    await api.files.mkdir(workspacePath.value, dirPath)
+    await refreshFiles()
+  }
+
+  async function deleteDirectory(dirPath) {
+    if (!workspacePath.value) return
+    const prefix = dirPath + '/'
+    if (currentFile.value?.startsWith(prefix)) {
+      currentFile.value = null
+      currentContent.value = ''
+      isDirty.value = false
+      commitLog.value = []
+      docVersions.value = []
+      comments.value = []
+    }
+    await api.files.trash.delete(workspacePath.value, dirPath, true)
+    await refreshFiles()
+    await loadTrash()
+  }
+
+  async function moveFile(filePath, newDirPath) {
+    if (!workspacePath.value) return
+    const filename = filePath.split('/').pop()
+    const newPath = newDirPath ? `${newDirPath}/${filename}` : filename
+    await api.files.move(workspacePath.value, filePath, newPath)
+    if (currentFile.value === filePath) {
+      currentFile.value = newPath
+      if (docBranchMap.value[filePath]) {
+        docBranchMap.value[newPath] = docBranchMap.value[filePath]
+        delete docBranchMap.value[filePath]
+        await saveDocBranchMap()
+      }
+    }
+    await refreshFiles()
+    return newPath
+  }
+
+  async function loadTrash() {
+    if (!workspacePath.value) { trashItems.value = []; return }
+    trashItems.value = await api.files.trash.list(workspacePath.value) || []
+  }
+
+  async function restoreFromTrash(id) {
+    if (!workspacePath.value) return
+    await api.files.trash.restore(workspacePath.value, id)
+    await refreshFiles()
+    await loadTrash()
+  }
+
+  async function purgeTrashItem(id) {
+    if (!workspacePath.value) return
+    await api.files.trash.purge(workspacePath.value, id)
+    await loadTrash()
   }
 
   async function refreshFiles() {
@@ -84,6 +183,14 @@ export const useAppStore = defineStore('app', () => {
 
   async function openFile(filePath) {
     if (!workspacePath.value) return
+
+    // Switch to the branch this document is on
+    const docBranch = docBranchMap.value[filePath]?.activeBranch || 'main'
+    if (docBranch !== currentBranch.value) {
+      const result = await api.git.checkout(workspacePath.value, docBranch)
+      if (result.success) currentBranch.value = docBranch
+    }
+
     const content = await api.files.read(workspacePath.value, filePath)
     currentFile.value = filePath
     currentContent.value = content || ''
@@ -91,7 +198,6 @@ export const useAppStore = defineStore('app', () => {
     await loadComments()
     await loadCommitLog()
     await loadDocVersions()
-    // Index for search
     if (content) {
       api.search.index(workspacePath.value, filePath, content)
     }
@@ -103,6 +209,13 @@ export const useAppStore = defineStore('app', () => {
     currentContent.value = content
     isDirty.value = false
     api.search.index(workspacePath.value, currentFile.value, content)
+    await checkFileStatus()
+  }
+
+  async function checkFileStatus() {
+    if (!workspacePath.value || !currentFile.value) { fileIsUncommitted.value = false; return }
+    const result = await api.git.fileStatus(workspacePath.value, currentFile.value)
+    fileIsUncommitted.value = result?.isUncommitted ?? false
   }
 
   async function createFile(name) {
@@ -117,7 +230,8 @@ export const useAppStore = defineStore('app', () => {
     if (!workspacePath.value || !currentFile.value) return
     const result = await api.git.commit(workspacePath.value, currentFile.value, message)
     if (result.success) {
-      await loadCommitLog()
+      fileIsUncommitted.value = false
+      await loadCommitLog().catch(e => console.error('[commitFile] loadCommitLog failed:', e))
     }
     return result
   }
@@ -134,7 +248,6 @@ export const useAppStore = defineStore('app', () => {
     const result = await api.git.createBranch(workspacePath.value, name)
     if (result.success) {
       await refreshBranches()
-      if (currentFile.value) await openFile(currentFile.value)
     }
     return result
   }
@@ -144,7 +257,26 @@ export const useAppStore = defineStore('app', () => {
     const result = await api.git.checkout(workspacePath.value, name)
     if (result.success) {
       currentBranch.value = name
-      if (currentFile.value) await openFile(currentFile.value)
+      // Update the doc branch map for the current document
+      if (currentFile.value) {
+        if (!docBranchMap.value[currentFile.value]) {
+          if (name !== 'main') {
+            docBranchMap.value[currentFile.value] = { activeBranch: name, branches: [name] }
+          }
+        } else {
+          docBranchMap.value[currentFile.value].activeBranch = name
+          if (name !== 'main' && !docBranchMap.value[currentFile.value].branches.includes(name)) {
+            docBranchMap.value[currentFile.value].branches.push(name)
+          }
+        }
+        await saveDocBranchMap()
+        // Reload content for the current file on the new branch
+        const content = await api.files.read(workspacePath.value, currentFile.value)
+        currentContent.value = content || ''
+        isDirty.value = false
+        await loadCommitLog()
+        await loadDocVersions()
+      }
     }
     return result
   }
@@ -153,25 +285,59 @@ export const useAppStore = defineStore('app', () => {
     if (!workspacePath.value) return
     const result = await api.git.merge(workspacePath.value, fromBranch, message)
     if (result.success) {
+      // Delete the merged branch
+      await api.git.deleteBranch(workspacePath.value, fromBranch)
+      // Clean up the doc branch manifest
+      let changed = false
+      for (const [filePath, info] of Object.entries(docBranchMap.value)) {
+        if (info.branches && info.branches.includes(fromBranch)) {
+          info.branches = info.branches.filter(b => b !== fromBranch)
+          if (info.activeBranch === fromBranch) info.activeBranch = 'main'
+          if (info.branches.length === 0) delete docBranchMap.value[filePath]
+          changed = true
+        }
+      }
+      if (changed) await saveDocBranchMap()
       await refreshBranches()
       await refreshFiles()
+      // Reload current file content from main
+      if (currentFile.value) {
+        const content = await api.files.read(workspacePath.value, currentFile.value)
+        currentContent.value = content || ''
+        isDirty.value = false
+        await loadCommitLog()
+        await loadDocVersions()
+      }
     }
     return result
   }
 
   async function loadCommitLog() {
     if (!workspacePath.value || !currentFile.value) return
-    commitLog.value = await api.git.log(workspacePath.value, currentFile.value)
+    try {
+      const docBranches = getDocBranches(currentFile.value)
+      // Include current branch (may be null/detached) plus doc-owned branches
+      const branchCandidates = [currentBranch.value, 'main', ...docBranches].filter(Boolean)
+      const branchList = Array.from(new Set(branchCandidates))
+      const result = await api.git.logAll(workspacePath.value, currentFile.value, branchList)
+      commitLog.value = result || []
+    } catch (err) {
+      console.warn('[loadCommitLog] logAll failed, falling back:', err)
+      try {
+        commitLog.value = await api.git.log(workspacePath.value, currentFile.value) || []
+      } catch {
+        commitLog.value = []
+      }
+    }
+    try { await checkFileStatus() } catch {}
   }
 
   async function loadComments() {
     if (!currentFile.value) return
     const docId = currentFile.value.replace(/\//g, '_')
     const saved = await api.comments.get(docId) || []
-    // Merge in demo comments for this file if demo mode is on
     if (isDemoMode.value) {
       const demoForFile = _demoComments.value[currentFile.value] || []
-      // Stamp timestamps dynamically so they look recent
       const now = Date.now()
       const stamped = demoForFile.map((c, i) => ({
         ...c,
@@ -237,12 +403,26 @@ export const useAppStore = defineStore('app', () => {
 
   async function forkDocument(branchName) {
     const result = await createBranch(branchName)
-    if (result?.success) await checkoutBranch(branchName)
+    if (result?.success) {
+      await api.git.checkout(workspacePath.value, branchName)
+      currentBranch.value = branchName
+      // Record this branch as owned by the current document
+      if (currentFile.value) {
+        if (!docBranchMap.value[currentFile.value]) {
+          docBranchMap.value[currentFile.value] = { activeBranch: branchName, branches: [branchName] }
+        } else {
+          docBranchMap.value[currentFile.value].activeBranch = branchName
+          if (!docBranchMap.value[currentFile.value].branches.includes(branchName)) {
+            docBranchMap.value[currentFile.value].branches.push(branchName)
+          }
+        }
+        await saveDocBranchMap()
+      }
+    }
     return result
   }
 
   async function enableDemoMode() {
-    // Load config from public/demo/config.json — not bundled, editable without rebuild
     const cfg = await fetch('/demo/config.json').then(r => r.json())
     const defaultPath = await api.workspace.getDefault()
     const parent = defaultPath.replace(/\/[^/]+$/, '')
@@ -253,6 +433,13 @@ export const useAppStore = defineStore('app', () => {
     isDemoMode.value = true
 
     await openWorkspace(demoPath, cfg.template || 'pm-framework')
+
+    if (cfg.files && workspacePath.value) {
+      for (const [filePath, content] of Object.entries(cfg.files)) {
+        await api.files.write(workspacePath.value, filePath, content)
+      }
+      await refreshFiles()
+    }
   }
 
   function disableDemoMode() {
@@ -284,14 +471,16 @@ export const useAppStore = defineStore('app', () => {
   return {
     workspacePath, workspaceName, recentWorkspaces,
     files, currentFile, currentContent, branches, currentBranch,
-    commitLog, comments, isDirty, isLoading, shareInfo, searchResults, config,
+    commitLog, comments, isDirty, fileIsUncommitted, isLoading, shareInfo, searchResults, config,
     sidebarTab, rightPanelTab,
-    isDemoMode, demoPeers, docVersions,
+    isDemoMode, demoPeers, docVersions, docBranchMap, currentDocBranch, trashItems,
     loadConfig, saveConfig,
     openWorkspace, refreshFiles, openFile, saveFile, createFile, renameFile,
+    deleteFile, createDirectory, deleteDirectory, moveFile, loadTrash, restoreFromTrash, purgeTrashItem,
     commitFile, refreshBranches, createBranch, checkoutBranch, mergeBranch,
-    loadCommitLog, loadComments, addComment, resolveComment, deleteComment,
+    loadCommitLog, checkFileStatus, loadComments, addComment, resolveComment, deleteComment,
     loadDocVersions, saveDocVersion, deleteDocVersion, restoreDocVersion, forkDocument,
+    getDocBranches, loadDocBranchMap, saveDocBranchMap,
     startShare, stopShare, searchDocs,
     enableDemoMode, disableDemoMode
   }

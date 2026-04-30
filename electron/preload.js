@@ -23,7 +23,16 @@ contextBridge.exposeInMainWorld('canonic', {
     read: (workspacePath, filePath) => ipcRenderer.invoke('files:read', workspacePath, filePath),
     write: (workspacePath, filePath, content) => ipcRenderer.invoke('files:write', workspacePath, filePath, content),
     delete: (workspacePath, filePath) => ipcRenderer.invoke('files:delete', workspacePath, filePath),
-    newDoc: (workspacePath, fileName) => ipcRenderer.invoke('files:new', workspacePath, fileName)
+    newDoc: (workspacePath, fileName) => ipcRenderer.invoke('files:new', workspacePath, fileName),
+    mkdir: (workspacePath, dirPath) => ipcRenderer.invoke('files:mkdir', workspacePath, dirPath),
+    rmdir: (workspacePath, dirPath) => ipcRenderer.invoke('files:rmdir', workspacePath, dirPath),
+    move: (workspacePath, oldPath, newPath) => ipcRenderer.invoke('files:move', workspacePath, oldPath, newPath),
+    trash: {
+      delete: (workspacePath, itemPath, isDirectory) => ipcRenderer.invoke('files:trash', workspacePath, itemPath, isDirectory),
+      list: (workspacePath) => ipcRenderer.invoke('files:trash-list', workspacePath),
+      restore: (workspacePath, id) => ipcRenderer.invoke('files:trash-restore', workspacePath, id),
+      purge: (workspacePath, id) => ipcRenderer.invoke('files:trash-purge', workspacePath, id)
+    }
   },
 
   // Git
@@ -36,7 +45,10 @@ contextBridge.exposeInMainWorld('canonic', {
     merge: (workspacePath, from, message) => ipcRenderer.invoke('git:merge', workspacePath, from, message),
     diff: (workspacePath, filePath, oid) => ipcRenderer.invoke('git:diff', workspacePath, filePath, oid),
     readCommit: (workspacePath, filePath, oid) => ipcRenderer.invoke('git:read-commit', workspacePath, filePath, oid),
-    status: (workspacePath) => ipcRenderer.invoke('git:status', workspacePath)
+    status: (workspacePath) => ipcRenderer.invoke('git:status', workspacePath),
+    deleteBranch: (workspacePath, name) => ipcRenderer.invoke('git:delete-branch', workspacePath, name),
+    logAll: (workspacePath, filePath, branchList) => ipcRenderer.invoke('git:log-all', workspacePath, filePath, branchList),
+    fileStatus: (workspacePath, filePath) => ipcRenderer.invoke('git:file-status', workspacePath, filePath)
   },
 
   // Comments
@@ -77,6 +89,12 @@ contextBridge.exposeInMainWorld('canonic', {
     install: () => ipcRenderer.invoke('update:install'),
     onAvailable: (cb) => ipcRenderer.on('update:available', (_, info) => cb(info)),
     onDownloaded: (cb) => ipcRenderer.on('update:downloaded', (_, info) => cb(info))
+  },
+
+  // Doc branch manifest (per-workspace, stored in .canonic/doc-branches.json)
+  docBranches: {
+    get: (workspacePath) => ipcRenderer.invoke('doc-branches:get', workspacePath),
+    set: (workspacePath, data) => ipcRenderer.invoke('doc-branches:set', workspacePath, data)
   },
 
   // Doc versions (per-file named snapshots pointing to commit OIDs)

@@ -5,20 +5,8 @@
       <div class="titlebar-left">
         <img src="/canonical-logo.svg" alt="" class="titlebar-logo" />
         <span class="app-name">canonic<span class="accent">.ai</span></span>
-        <div class="branch-selector" @click.stop="showBranchMenu = !showBranchMenu" v-if="store.workspacePath">
-          <GitBranch :size="13" />
-          <span>{{ store.currentBranch }}</span>
-          <ChevronDown :size="11" />
-          <BranchMenu v-if="showBranchMenu" @close="showBranchMenu = false" />
-        </div>
       </div>
       <div class="titlebar-right">
-        <button class="icon-btn" title="Share document" @click="showShare = true" v-if="store.currentFile">
-          <Share2 :size="15" />
-        </button>
-        <button class="icon-btn" title="Commit checkpoint" @click="showCommit = true" v-if="store.currentFile">
-          <GitCommitHorizontal :size="15" />
-        </button>
         <button class="icon-btn" title="Settings" @click="showSettings = true">
           <Settings :size="15" />
         </button>
@@ -64,10 +52,12 @@
           <button :class="['tab', store.rightPanelTab === 'comments' && 'active']" @click="store.rightPanelTab = 'comments'">Comments</button>
           <button :class="['tab', store.rightPanelTab === 'ai' && 'active']" @click="store.rightPanelTab = 'ai'">AI</button>
           <button :class="['tab', store.rightPanelTab === 'history' && 'active']" @click="store.rightPanelTab = 'history'">History</button>
+          <button :class="['tab', store.rightPanelTab === 'share' && 'active']" @click="store.rightPanelTab = 'share'">Share</button>
         </div>
         <CommentsPanel v-if="store.rightPanelTab === 'comments'" />
         <AIChat v-else-if="store.rightPanelTab === 'ai'" />
         <HistoryPanel v-else-if="store.rightPanelTab === 'history'" />
+        <SharePanel v-else-if="store.rightPanelTab === 'share'" />
       </aside>
     </div>
 
@@ -78,12 +68,7 @@
       <button class="update-dismiss" @click="updateReady = false">Later</button>
     </div>
 
-    <!-- Click-outside backdrop for branch menu -->
-    <div v-if="showBranchMenu" class="menu-backdrop" @click="showBranchMenu = false" />
-
     <!-- Modals -->
-    <CommitModal v-if="showCommit" @close="showCommit = false" />
-    <ShareModal v-if="showShare" @close="showShare = false" />
     <NewDocModal v-if="showNewDoc" @close="showNewDoc = false" />
     <SettingsModal v-if="showSettings" @close="showSettings = false" />
   </div>
@@ -93,7 +78,7 @@
 import { ref, provide, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../store'
-import { GitBranch, ChevronDown, Share2, GitCommitHorizontal, Settings, Files, Search, Users } from 'lucide-vue-next'
+import { Settings, Files, Search, Users } from 'lucide-vue-next'
 import FileTree from '../sidebar/FileTree.vue'
 import SearchPanel from '../sidebar/SearchPanel.vue'
 import PeersPanel from '../sidebar/PeersPanel.vue'
@@ -101,16 +86,13 @@ import Editor from '../editor/Editor.vue'
 import CommentsPanel from '../panels/CommentsPanel.vue'
 import AIChat from '../panels/AIChat.vue'
 import HistoryPanel from '../panels/HistoryPanel.vue'
-import BranchMenu from './BranchMenu.vue'
-import CommitModal from '../modals/CommitModal.vue'
-import ShareModal from '../modals/ShareModal.vue'
+import SharePanel from '../panels/SharePanel.vue'
 import NewDocModal from '../modals/NewDocModal.vue'
 import SettingsModal from '../modals/SettingsModal.vue'
 import DemoBanner from './DemoBanner.vue'
 
 const store = useAppStore()
 const router = useRouter()
-const showBranchMenu = ref(false)
 
 // Restore workspace on page reload (hash URL preserves /workspace but Pinia store is fresh)
 onMounted(async () => {
@@ -127,8 +109,6 @@ onMounted(async () => {
     }
   }
 })
-const showCommit = ref(false)
-const showShare = ref(false)
 const showNewDoc = ref(false)
 const showSettings = ref(false)
 const updateReady = ref(false)
@@ -314,8 +294,8 @@ async function newDoc() {
 .panel-tabs .tab {
   flex: 1;
   border-radius: 0;
-  padding: 10px 0;
-  font-size: 0.8125rem;
+  padding: 9px 0;
+  font-size: 0.75rem;
 }
 
 .panel-tabs .tab.active {

@@ -2,9 +2,26 @@
   <div class="file-tree">
     <div class="tree-header">
       <span class="section-label">Documents</span>
-      <button class="add-btn" @click="showNewDoc()" title="New document">
-        <FilePlus :size="14" />
-      </button>
+      <div class="header-actions">
+        <button class="add-btn" @click="showNewDoc()" title="New document">
+          <FilePlus :size="14" />
+        </button>
+        <button class="add-btn" @click="creatingFolder = true" title="New folder">
+          <FolderPlus :size="14" />
+        </button>
+      </div>
+    </div>
+    <!-- New root folder input -->
+    <div v-if="creatingFolder" class="new-folder-row">
+      <input
+        ref="folderInput"
+        v-model="folderName"
+        class="folder-input"
+        placeholder="folder-name"
+        @keydown.enter="confirmNewFolder"
+        @keydown.esc="creatingFolder = false"
+        @blur="confirmNewFolder"
+      />
     </div>
     <div class="tree-body">
       <TreeNode
@@ -17,17 +34,38 @@
         No documents yet. Create one to get started.
       </div>
     </div>
+    <TrashBin />
   </div>
 </template>
 
 <script setup>
-import { inject } from 'vue'
+import { ref, nextTick, inject, watch } from 'vue'
 import { useAppStore } from '../../store'
 import TreeNode from './TreeNode.vue'
-import { FilePlus } from 'lucide-vue-next'
+import TrashBin from './TrashBin.vue'
+import { FilePlus, FolderPlus } from 'lucide-vue-next'
 
 const store = useAppStore()
 const showNewDoc = inject('showNewDoc')
+
+const creatingFolder = ref(false)
+const folderName = ref('')
+const folderInput = ref(null)
+
+watch(creatingFolder, async (val) => {
+  if (val) {
+    folderName.value = ''
+    await nextTick()
+    folderInput.value?.focus()
+  }
+})
+
+async function confirmNewFolder() {
+  const name = folderName.value.trim()
+  creatingFolder.value = false
+  if (!name) return
+  await store.createDirectory(name)
+}
 </script>
 
 <style scoped>
@@ -43,6 +81,28 @@ const showNewDoc = inject('showNewDoc')
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.new-folder-row {
+  padding: 4px 8px;
+}
+
+.folder-input {
+  width: 100%;
+  background: var(--bg-base);
+  border: 1px solid var(--accent-muted);
+  border-radius: 4px;
+  padding: 3px 8px;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
 }
 
 .section-label {

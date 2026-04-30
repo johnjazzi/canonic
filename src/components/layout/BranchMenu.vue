@@ -1,40 +1,22 @@
 <template>
   <div class="branch-menu" @keydown.esc="$emit('close')">
     <div class="menu-section">
-      <p class="menu-label">Switch branch</p>
+      <p class="menu-label">{{ store.currentFile ? 'This document\'s branches' : 'Switch branch' }}</p>
       <button
-        v-for="branch in store.branches"
+        v-for="branch in visibleBranches"
         :key="branch"
-        :class="['branch-item', branch === store.currentBranch && 'active']"
+        :class="['branch-item', branch === store.currentDocBranch && 'active']"
         @click="switchBranch(branch)"
       >
         <GitBranch :size="12" />
         {{ branch }}
-        <Check v-if="branch === store.currentBranch" :size="12" style="margin-left: auto" />
+        <Check v-if="branch === store.currentDocBranch" :size="12" style="margin-left: auto" />
       </button>
     </div>
 
-    <div class="menu-divider" />
-
-    <div class="menu-section">
-      <p class="menu-label">New branch</p>
-      <div class="new-branch-input">
-        <input
-          v-model="newBranchName"
-          placeholder="branch-name"
-          @keydown.enter="createBranch"
-          @click.stop
-        />
-        <button @click.stop="createBranch" :disabled="!newBranchName.trim()">
-          Create
-        </button>
-      </div>
-      <p class="branch-hint">Branches off current: <strong>{{ store.currentBranch }}</strong></p>
-    </div>
-
-    <div v-if="store.branches.length > 1" class="menu-section">
+    <div v-if="mergeableBranches.length > 0" class="menu-section">
       <div class="menu-divider" />
-      <button class="merge-trigger" @click="showMerge = true">
+      <button class="merge-trigger" @click="showMerge = !showMerge">
         <GitMerge :size="12" />
         Merge a branch into main…
       </button>
@@ -45,7 +27,7 @@
       <p class="menu-label">Merge into main</p>
       <select v-model="mergeBranch" class="merge-select">
         <option disabled value="">Select branch</option>
-        <option v-for="b in otherBranches" :key="b" :value="b">{{ b }}</option>
+        <option v-for="b in mergeableBranches" :key="b" :value="b">{{ b }}</option>
       </select>
       <input v-model="mergeMessage" placeholder="Merge commit message (optional)" class="merge-msg" />
       <button class="merge-btn" @click="doMerge" :disabled="!mergeBranch">Merge</button>
@@ -61,25 +43,27 @@ import { GitBranch, Check, GitMerge } from 'lucide-vue-next'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()
-const newBranchName = ref('')
 const showMerge = ref(false)
 const mergeBranch = ref('')
 const mergeMessage = ref('')
 const mergeError = ref('')
 
-const otherBranches = computed(() => store.branches.filter(b => b !== 'main'))
+// When a doc is open: show 'main' + that doc's owned branches.
+// When no doc open: show all workspace branches (fallback).
+const visibleBranches = computed(() => {
+  if (!store.currentFile) return store.branches
+  const docBranches = store.getDocBranches(store.currentFile)
+  const set = new Set(['main', ...docBranches])
+  return ['main', ...docBranches.filter(b => b !== 'main')]
+    .filter(b => set.has(b))
+})
+
+// Branches that can be merged into main (non-main branches visible for this doc)
+const mergeableBranches = computed(() => visibleBranches.value.filter(b => b !== 'main'))
 
 async function switchBranch(branch) {
-  if (branch === store.currentBranch) { emit('close'); return }
+  if (branch === store.currentDocBranch) { emit('close'); return }
   await store.checkoutBranch(branch)
-  emit('close')
-}
-
-async function createBranch() {
-  const name = newBranchName.value.trim().replace(/\s+/g, '-')
-  if (!name) return
-  await store.createBranch(name)
-  newBranchName.value = ''
   emit('close')
 }
 
@@ -144,45 +128,6 @@ async function doMerge() {
   height: 1px;
   background: var(--border);
   margin: 4px 0;
-}
-
-.new-branch-input {
-  display: flex;
-  gap: 6px;
-  padding: 4px 8px;
-}
-
-.new-branch-input input {
-  flex: 1;
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 5px 8px;
-  color: var(--text-primary);
-  font-size: 0.8rem;
-  font-family: 'JetBrains Mono', monospace;
-  outline: none;
-}
-
-.new-branch-input input:focus { border-color: var(--accent-muted); }
-
-.new-branch-input button {
-  padding: 5px 10px;
-  border-radius: 5px;
-  border: none;
-  background: var(--accent);
-  color: white;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.new-branch-input button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.branch-hint {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  padding: 2px 8px;
-  margin: 0;
 }
 
 .merge-trigger {

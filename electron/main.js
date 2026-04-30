@@ -136,6 +136,89 @@ function setupIpcHandlers() {
     return true
   })
 
+  // --- Trash (soft delete) ---
+  function getTrashDir(workspacePath) {
+    const d = path.join(workspacePath, '.canonic', 'trash')
+    if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true })
+    return d
+  }
+  function readTrashIndex(trashDir) {
+    const p = path.join(trashDir, 'index.json')
+    if (!fs.existsSync(p)) return []
+    try { return JSON.parse(fs.readFileSync(p, 'utf-8')) } catch { return [] }
+  }
+  function writeTrashIndex(trashDir, index) {
+    fs.writeFileSync(path.join(trashDir, 'index.json'), JSON.stringify(index, null, 2), 'utf-8')
+  }
+
+  ipcMain.handle('files:trash', async (_, workspacePath, itemPath, isDirectory) => {
+    const trashDir = getTrashDir(workspacePath)
+    const id = require('crypto').randomUUID()
+    const src = path.join(workspacePath, itemPath)
+    if (!fs.existsSync(src)) return { success: false, error: 'File not found' }
+    fs.renameSync(src, path.join(trashDir, id))
+    const index = readTrashIndex(trashDir)
+    index.unshift({ id, originalPath: itemPath, deletedAt: new Date().toISOString(), isDirectory: !!isDirectory })
+    writeTrashIndex(trashDir, index)
+    return { success: true, id }
+  })
+
+  ipcMain.handle('files:trash-list', async (_, workspacePath) => {
+    return readTrashIndex(getTrashDir(workspacePath))
+  })
+
+  ipcMain.handle('files:trash-restore', async (_, workspacePath, id) => {
+    const trashDir = getTrashDir(workspacePath)
+    const index = readTrashIndex(trashDir)
+    const item = index.find(i => i.id === id)
+    if (!item) return { success: false, error: 'Not in trash' }
+    const src = path.join(trashDir, id)
+    if (!fs.existsSync(src)) return { success: false, error: 'Trash file missing' }
+    const dest = path.join(workspacePath, item.originalPath)
+    const destDir = path.dirname(dest)
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true })
+    fs.renameSync(src, dest)
+    writeTrashIndex(trashDir, index.filter(i => i.id !== id))
+    return { success: true, originalPath: item.originalPath }
+  })
+
+  ipcMain.handle('files:trash-purge', async (_, workspacePath, id) => {
+    const trashDir = getTrashDir(workspacePath)
+    const index = readTrashIndex(trashDir)
+    const item = index.find(i => i.id === id)
+    if (item) {
+      const src = path.join(trashDir, id)
+      if (fs.existsSync(src)) {
+        if (item.isDirectory) fs.rmSync(src, { recursive: true, force: true })
+        else fs.unlinkSync(src)
+      }
+      writeTrashIndex(trashDir, index.filter(i => i.id !== id))
+    }
+    return true
+  })
+
+  ipcMain.handle('files:mkdir', async (_, workspacePath, dirPath) => {
+    const fullPath = path.join(workspacePath, dirPath)
+    fs.mkdirSync(fullPath, { recursive: true })
+    fs.writeFileSync(path.join(fullPath, '.gitkeep'), '', 'utf-8')
+    return true
+  })
+
+  ipcMain.handle('files:rmdir', async (_, workspacePath, dirPath) => {
+    const fullPath = path.join(workspacePath, dirPath)
+    if (fs.existsSync(fullPath)) fs.rmSync(fullPath, { recursive: true, force: true })
+    return true
+  })
+
+  ipcMain.handle('files:move', async (_, workspacePath, oldPath, newPath) => {
+    const oldFull = path.join(workspacePath, oldPath)
+    const newFull = path.join(workspacePath, newPath)
+    const dir = path.dirname(newFull)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.renameSync(oldFull, newFull)
+    return true
+  })
+
   ipcMain.handle('files:new', async (_, workspacePath, fileName) => {
     const filePath = fileName.endsWith('.md') ? fileName : `${fileName}.md`
     const fullPath = path.join(workspacePath, filePath)
@@ -169,6 +252,10 @@ function setupIpcHandlers() {
     return gitService.merge(workspacePath, fromBranch, message)
   })
 
+  ipcMain.handle('git:delete-branch', async (_, workspacePath, branchName) => {
+    return await gitService.deleteBranch(workspacePath, branchName)
+  })
+
   ipcMain.handle('git:diff', async (_, workspacePath, filePath, oid) => {
     return gitService.diff(workspacePath, filePath, oid)
   })
@@ -179,6 +266,14 @@ function setupIpcHandlers() {
 
   ipcMain.handle('git:status', async (_, workspacePath) => {
     return gitService.status(workspacePath)
+  })
+
+  ipcMain.handle('git:log-all', async (_, workspacePath, filePath, branchList) => {
+    return gitService.logAllBranches(workspacePath, filePath, branchList)
+  })
+
+  ipcMain.handle('git:file-status', async (_, workspacePath, filePath) => {
+    return gitService.fileStatus(workspacePath, filePath)
   })
 
   // --- Comments ---
@@ -268,6 +363,19 @@ function setupIpcHandlers() {
   ipcMain.handle('versions:delete', async (_, workspacePath, filePath, versionName) => {
     versionsService.remove(workspacePath, filePath, versionName)
     return true
+  })
+
+  ipcMain.handle('doc-branches:get', async (_, workspacePath) => {
+    const p = path.join(workspacePath, '.canonic', 'doc-branches.json')
+    if (!fs.existsSync(p)) return {}
+    try { return JSON.parse(fs.readFileSync(p, 'utf-8')) } catch { return {} }
+  })
+
+  ipcMain.handle('doc-branches:set', async (_, workspacePath, data) => {
+    const dir = path.join(workspacePath, '.canonic')
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'doc-branches.json'), JSON.stringify(data, null, 2), 'utf-8')
+    return { success: true }
   })
 
   // --- Cleanup / Uninstall ---

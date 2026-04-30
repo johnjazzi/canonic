@@ -1,6 +1,22 @@
 <template>
   <div class="history-panel">
 
+    <!-- Commit form -->
+    <div class="commit-form">
+      <input
+        v-model="commitMsg"
+        class="commit-input"
+        placeholder="Describe this checkpoint…"
+        @keydown.enter="commit"
+        :disabled="committing"
+      />
+      <button class="commit-btn" @click="commit" :disabled="!commitMsg.trim() || committing">
+        {{ committing ? '…' : 'Save checkpoint' }}
+      </button>
+      <p v-if="commitSuccess" class="commit-success">✓ Saved</p>
+      <p v-if="commitError" class="commit-error">{{ commitError }}</p>
+    </div>
+
     <!-- Named versions -->
     <div v-if="store.docVersions.length" class="versions-section">
       <div class="section-label">
@@ -28,32 +44,109 @@
     </div>
 
     <!-- Commit history -->
-    <div class="section-label commits-label" v-if="store.commitLog.length || store.docVersions.length">
+    <div class="section-label commits-label" v-if="store.commitLog.length || store.docVersions.length || store.isDirty || store.fileIsUncommitted">
       <GitCommitHorizontal :size="11" />
-      Commits
+      History
     </div>
 
-    <div class="history-list" v-if="store.commitLog.length > 0">
+    <div class="history-list" v-if="store.commitLog.length > 0 || store.isDirty || store.fileIsUncommitted">
+
+      <!-- Unsaved changes row -->
+      <div v-if="store.isDirty" class="pending-item pending-unsaved">
+        <div class="pending-line" />
+        <div class="pending-dot unsaved-dot" />
+        <div class="pending-info">
+          <span class="pending-label">Unsaved changes</span>
+          <span class="pending-hint">Not written to disk yet</span>
+        </div>
+      </div>
+
+      <!-- Uncommitted changes row -->
+      <div v-else-if="store.fileIsUncommitted" class="pending-item pending-uncommitted">
+        <div class="pending-line" />
+        <div class="pending-dot uncommitted-dot" />
+        <div class="pending-info">
+          <span class="pending-label">Uncommitted changes</span>
+          <span class="pending-hint">Saved but not checkpointed</span>
+        </div>
+      </div>
+
+      <!-- Commit entries -->
       <div
-        v-for="commit in store.commitLog"
+        v-for="(commit, idx) in store.commitLog"
         :key="commit.oid"
-        class="commit-item"
-        @click="viewCommit(commit)"
-        :class="{ viewing: viewingOid === commit.oid }"
       >
-        <div class="commit-dot" />
-        <div class="commit-info">
-          <p class="commit-message">{{ commit.message }}</p>
-          <div class="commit-meta">
-            <span class="commit-author">{{ commit.author }}</span>
-            <span class="commit-time">{{ formatTime(commit.timestamp) }}</span>
-          </div>
-          <code class="commit-oid">{{ commit.oid.slice(0, 7) }}</code>
+        <!-- Branch tip badge row -->
+        <div
+          v-if="commit.branchTips && commit.branchTips.length"
+          class="branch-tip-row"
+        >
           <span
-            v-if="versionsByOid[commit.oid]"
-            class="commit-version-badge"
-            :title="versionsByOid[commit.oid].message"
-          >{{ versionsByOid[commit.oid].name }}</span>
+            v-for="b in commit.branchTips"
+            :key="b"
+            class="branch-badge"
+            :class="b === 'main' ? 'branch-badge-main' : 'branch-badge-draft'"
+          >
+            <GitBranch :size="9" />
+            {{ b }}
+          </span>
+        </div>
+
+        <!-- Merge commit -->
+        <div
+          v-if="commit.isMerge"
+          class="merge-item"
+          @click="viewCommit(commit)"
+          :class="{ viewing: viewingOid === commit.oid }"
+        >
+          <div class="merge-icon-wrap">
+            <GitMerge :size="12" class="merge-icon" />
+          </div>
+          <div class="commit-info">
+            <p class="commit-message merge-message">{{ commit.message }}</p>
+            <div class="commit-meta">
+              <span class="commit-author">{{ commit.author }}</span>
+              <span class="commit-time">{{ formatTime(commit.timestamp) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Regular commit -->
+        <div v-else>
+          <div
+            class="commit-item"
+            @click="viewCommit(commit)"
+            :class="{ viewing: viewingOid === commit.oid }"
+          >
+            <div class="commit-line" :class="idx === store.commitLog.length - 1 && 'last'" />
+            <div class="commit-dot" />
+            <div class="commit-info">
+              <p class="commit-message">{{ commit.message }}</p>
+              <div class="commit-meta">
+                <span class="commit-author">{{ commit.author }}</span>
+                <span class="commit-time">{{ formatTime(commit.timestamp) }}</span>
+              </div>
+              <div class="commit-footer">
+                <code class="commit-oid">{{ commit.oid.slice(0, 7) }}</code>
+                <span
+                  v-if="versionsByOid[commit.oid]"
+                  class="commit-version-badge"
+                  :title="versionsByOid[commit.oid].message"
+                >{{ versionsByOid[commit.oid].name }}</span>
+                <span v-if="loadingOid === commit.oid" class="diff-loading">loading…</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Inline diff -->
+          <div v-if="viewingOid === commit.oid && diffsByOid[commit.oid]" class="inline-diff">
+            <div
+              v-for="(line, li) in diffsByOid[commit.oid].split('\n')"
+              :key="li"
+              class="diff-line"
+              :class="line.startsWith('+ ') ? 'diff-add' : line.startsWith('- ') ? 'diff-del' : line === '  ···' ? 'diff-sep' : ''"
+            >{{ line }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -61,15 +154,6 @@
     <div v-else-if="!store.docVersions.length" class="empty-history">
       <p>No commits yet.</p>
       <p class="hint">Use the commit button to save checkpoints in your document's history.</p>
-    </div>
-
-    <!-- Diff view -->
-    <div v-if="diffContent" class="diff-view">
-      <div class="diff-header">
-        <span>Changes since {{ viewingOid?.slice(0, 7) }}</span>
-        <button class="close-btn" @click="diffContent = null">✕</button>
-      </div>
-      <pre class="diff-content">{{ diffContent }}</pre>
     </div>
 
     <!-- Restore confirm -->
@@ -88,16 +172,51 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAppStore } from '../../store'
-import { Tag, GitCommitHorizontal } from 'lucide-vue-next'
+import { Tag, GitCommitHorizontal, GitBranch, GitMerge } from 'lucide-vue-next'
 
 const store = useAppStore()
 const viewingOid = ref(null)
-const diffContent = ref(null)
+const diffsByOid = ref({})
+const loadingOid = ref(null)
 const restoreConfirm = ref(null)
 
-// Map oid → version so we can badge commits that have a named version
+const commitMsg = ref('')
+const committing = ref(false)
+const commitSuccess = ref(false)
+const commitError = ref('')
+
+async function commit() {
+  if (!commitMsg.value.trim() || committing.value) return
+  if (store.isDirty) {
+    await window.canonic.files.write(store.workspacePath, store.currentFile, store.currentContent)
+    store.isDirty = false
+  }
+  committing.value = true
+  commitError.value = ''
+  commitSuccess.value = false
+  const result = await store.commitFile(commitMsg.value.trim())
+  committing.value = false
+  if (result?.success) {
+    commitMsg.value = ''
+    commitSuccess.value = true
+    setTimeout(() => { commitSuccess.value = false }, 2000)
+  } else {
+    commitError.value = result?.error || 'Commit failed'
+  }
+}
+
+watch(() => store.currentFile, () => {
+  viewingOid.value = null
+  diffsByOid.value = {}
+  loadingOid.value = null
+  restoreConfirm.value = null
+  commitMsg.value = ''
+  commitError.value = ''
+  commitSuccess.value = false
+})
+
 const versionsByOid = computed(() => {
   const map = {}
   for (const v of store.docVersions) {
@@ -115,26 +234,53 @@ function formatTime(ts) {
 async function viewCommit(commit) {
   if (viewingOid.value === commit.oid) {
     viewingOid.value = null
-    diffContent.value = null
     return
   }
   viewingOid.value = commit.oid
+  if (diffsByOid.value[commit.oid]) return // already loaded
+  loadingOid.value = commit.oid
   const result = await window.canonic.git.diff(store.workspacePath, store.currentFile, commit.oid)
-  if (result) diffContent.value = generateDiff(result.before, result.after)
+  loadingOid.value = null
+  if (result) diffsByOid.value[commit.oid] = generateDiff(result.before, result.after)
 }
 
 function generateDiff(before, after) {
-  const bl = before.split('\n')
-  const al = after.split('\n')
+  const a = before.split('\n')
+  const b = after.split('\n')
+
+  // Myers LCS via DP to get edit ops
+  const m = a.length, n = b.length
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = m - 1; i >= 0; i--)
+    for (let j = n - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1])
+
+  // Build ops: 'eq' | 'del' | 'ins'
+  const ops = []
+  let i = 0, j = 0
+  while (i < m || j < n) {
+    if (i < m && j < n && a[i] === b[j]) { ops.push({ type: 'eq', line: a[i] }); i++; j++ }
+    else if (j < n && (i >= m || dp[i][j+1] >= dp[i+1][j])) { ops.push({ type: 'ins', line: b[j] }); j++ }
+    else { ops.push({ type: 'del', line: a[i] }); i++ }
+  }
+
+  // Collect only changed ranges + 3 lines of context
+  const CTX = 3
+  const changed = new Set(ops.map((op, idx) => op.type !== 'eq' ? idx : -1).filter(x => x >= 0))
+  if (!changed.size) return '(no changes)'
+
+  const visible = new Set()
+  for (const idx of changed)
+    for (let k = Math.max(0, idx - CTX); k <= Math.min(ops.length - 1, idx + CTX); k++)
+      visible.add(k)
+
   const lines = []
-  const max = Math.max(bl.length, al.length)
-  for (let i = 0; i < max; i++) {
-    const b = bl[i], a = al[i]
-    if (b === a) { lines.push('  ' + (b ?? '')) }
-    else {
-      if (b !== undefined) lines.push('- ' + b)
-      if (a !== undefined) lines.push('+ ' + a)
-    }
+  let lastIdx = -1
+  for (const idx of [...visible].sort((a, b) => a - b)) {
+    if (lastIdx !== -1 && idx > lastIdx + 1) lines.push('  ···')
+    const op = ops[idx]
+    lines.push((op.type === 'ins' ? '+ ' : op.type === 'del' ? '- ' : '  ') + op.line)
+    lastIdx = idx
   }
   return lines.join('\n')
 }
@@ -162,6 +308,51 @@ async function deleteVersion(name) {
   overflow: hidden;
   position: relative;
 }
+
+.commit-form {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.commit-input {
+  width: 100%;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.commit-input:focus { border-color: var(--accent-muted); }
+.commit-input::placeholder { color: var(--text-muted); }
+.commit-input:disabled { opacity: 0.5; }
+
+.commit-btn {
+  width: 100%;
+  padding: 6px 0;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.commit-btn:hover:not(:disabled) { opacity: 0.85; }
+.commit-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.commit-success { font-size: 0.775rem; color: var(--success); margin: 0; }
+.commit-error { font-size: 0.775rem; color: var(--error); margin: 0; }
 
 .section-label {
   display: flex;
@@ -194,7 +385,6 @@ async function deleteVersion(name) {
 }
 
 .version-item:hover { background: var(--bg-hover); }
-
 .version-info { flex: 1; min-width: 0; }
 
 .version-name {
@@ -219,11 +409,7 @@ async function deleteVersion(name) {
   text-overflow: ellipsis;
 }
 
-.version-meta {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
+.version-meta { display: flex; gap: 6px; align-items: center; }
 
 .version-oid {
   font-family: 'JetBrains Mono', monospace;
@@ -234,10 +420,7 @@ async function deleteVersion(name) {
   border-radius: 3px;
 }
 
-.version-time {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
+.version-time { font-size: 0.7rem; color: var(--text-muted); }
 
 .version-actions {
   display: flex;
@@ -263,17 +446,95 @@ async function deleteVersion(name) {
 .v-btn:hover { background: var(--bg-active); color: var(--text-primary); }
 .v-btn-danger:hover { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.3); }
 
-/* Commits */
+/* History list */
 .history-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 8px 8px 8px 12px;
 }
 
+/* Pending (unsaved/uncommitted) rows */
+.pending-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 10px;
+  position: relative;
+}
+
+.pending-line {
+  position: absolute;
+  left: 15px;
+  top: 20px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--border);
+}
+
+.pending-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid;
+}
+
+.unsaved-dot { border-color: #f59e0b; background: rgba(245,158,11,0.2); }
+.uncommitted-dot { border-color: var(--accent-muted); background: rgba(74,122,155,0.15); }
+
+.pending-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pending-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.pending-hint {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+}
+
+/* Branch tip badges */
+.branch-tip-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 4px 4px 2px;
+}
+
+.branch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid;
+}
+
+.branch-badge-main {
+  color: #34d399;
+  background: rgba(52,211,153,0.1);
+  border-color: rgba(52,211,153,0.3);
+}
+
+.branch-badge-draft {
+  color: var(--accent);
+  background: rgba(74,122,155,0.12);
+  border-color: var(--accent-muted);
+}
+
+/* Regular commits */
 .commit-item {
   display: flex;
   gap: 10px;
-  padding: 8px;
+  padding: 6px 4px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
@@ -283,6 +544,17 @@ async function deleteVersion(name) {
 .commit-item:hover { background: var(--bg-hover); }
 .commit-item.viewing { background: var(--bg-active); }
 
+.commit-line {
+  position: absolute;
+  left: 11px;
+  top: 18px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--border);
+}
+
+.commit-line.last { display: none; }
+
 .commit-dot {
   width: 8px;
   height: 8px;
@@ -290,15 +562,20 @@ async function deleteVersion(name) {
   background: var(--accent);
   margin-top: 5px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
-.commit-info { flex: 1; }
+.commit-info { flex: 1; min-width: 0; }
 
 .commit-message {
   font-size: 0.8375rem;
   color: var(--text-primary);
-  margin: 0 0 4px;
+  margin: 0 0 3px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .commit-meta {
@@ -306,8 +583,10 @@ async function deleteVersion(name) {
   gap: 8px;
   font-size: 0.75rem;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
+
+.commit-footer { display: flex; align-items: center; gap: 6px; }
 
 .commit-oid {
   font-family: 'JetBrains Mono', monospace;
@@ -319,13 +598,45 @@ async function deleteVersion(name) {
 }
 
 .commit-version-badge {
-  margin-left: 6px;
   font-size: 0.7rem;
   background: rgba(74, 122, 155, 0.2);
   color: var(--accent);
   border: 1px solid var(--accent-muted);
   padding: 1px 6px;
   border-radius: 10px;
+}
+
+/* Merge commits */
+.merge-item {
+  display: flex;
+  gap: 10px;
+  padding: 5px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  opacity: 0.75;
+}
+
+.merge-item:hover { background: var(--bg-hover); opacity: 1; }
+.merge-item.viewing { background: var(--bg-active); opacity: 1; }
+
+.merge-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 8px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.merge-icon { color: #a78bfa; }
+
+.merge-message {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 2px;
+  font-weight: 400;
 }
 
 .empty-history {
@@ -343,48 +654,37 @@ async function deleteVersion(name) {
 
 .hint { font-size: 0.8rem; opacity: 0.7; }
 
-/* Diff */
-.diff-view {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--bg-base);
-  border-top: 1px solid var(--border);
-  max-height: 50%;
-  display: flex;
-  flex-direction: column;
-}
-
-.diff-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-
-.diff-content {
-  flex: 1;
+/* Inline diff */
+.inline-diff {
+  margin: 0 4px 6px 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  overflow: hidden;
+  max-height: 280px;
   overflow-y: auto;
-  padding: 8px 12px;
+  padding: 6px 0;
+}
+
+.diff-line {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   line-height: 1.6;
-  color: var(--text-secondary);
+  padding: 0 10px;
   white-space: pre-wrap;
   word-break: break-all;
+  color: var(--text-muted);
+}
+
+.diff-add { background: rgba(52, 211, 153, 0.08); color: #34d399; }
+.diff-del { background: rgba(248, 113, 113, 0.08); color: #f87171; }
+.diff-sep { color: var(--text-muted); opacity: 0.5; text-align: center; letter-spacing: 0.1em; }
+
+.diff-loading {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: 4px;
 }
 
 /* Restore confirm overlay */

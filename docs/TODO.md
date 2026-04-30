@@ -3,19 +3,24 @@
 ---
 
 ## Bugs
-- [ ] **a bunch of stuff doesnt work.**
+- [x] **a bunch of stuff doesnt work.** fix it, make no mistakes. all the versioning and commit stuff. we version, commit, branch by document not by workspace. none of it is refreshing as i choose different documents.
+- [x] **cant move files from directory to directory**
+- [x] cant delete documents
+- [x] **can't create directory**
+- [x] **can't delete directory**
+- [x] **cant change filename from title**
 - [x] **Comment highlights not rendered in editor** — comments are stored and shown in CommentsPanel but the `anchor.quotedText` is never highlighted in the document. Need to apply ProseMirror decorations after `store.comments` loads: scan the doc for each `quotedText`, create a `Decoration.inline` highlight span, and update decorations when comments change or the file switches. Clicking a highlight should scroll the panel to the matching comment. *(Editor.vue + MilkdownEditor.vue — ProseMirror DecorationSet)*
 
 ---
 
 ## Features
 
-- [ ] **create branches or versions per doc** so we can fork or keep a copy of a doc at a certain point in time.
+- [x] **create branches or versions per doc** per-doc branch manifest; fork/merge scoped to individual documents; version tagging with named snapshots.
 - [ ] **add a terminal** in the ui that lets you run cli commands for the workspace.
 - [ ] **[AI AGENT] kick off claude code** be able start/continue claude code session with the changes you made to the doucment. i.e. hey I changed this requirements can you update the app to reflect it? 
-- [ ] **show commits** we want to be able to make checkpoint commits per file. maybe its already doing that idk. need to definitely show that there is uncommited changes. 
+- [x] **show commits** checkpoint commits per file with history panel; uncommitted/unsaved indicators; branch/merge shown in history; inline diff on click (changed lines only).
 - [ ] **Collapsible sidebar** — toggle button collapses left sidebar to icon-only strip (~40px); persist state in localStorage. *(MainLayout + FileTree, UI only)*
-- [ ] **Create directories** — "New folder" option in FileTree "+" menu; writes `.gitkeep`; rename works on directory nodes. *(FileTree + TreeNode + `files:mkdir` IPC)*
+- [x] **Create directories** — "New folder" in FileTree header + inline in TreeNode; rename/delete/move all work on directory nodes. Soft-delete trash bin with restore + permanent delete.
 - [ ] **Shared / connected documents in browser** — peer docs section with display name, last-synced timestamp, online/offline indicator; clicking opens read-only from `~/.canonic/peers/`; refresh triggers `git fetch`. *(PeersPanel + peer sync in share.js + mDNS in main.js)*
 - [ ] **Sharing version radio** — when sharing a doc or workspace, let the user choose what the recipient sees: *Current WIP* (live file on disk), *Last committed* (HEAD of current branch), or *Main only* (always the `main` branch). Stored in `sharingDefaults` config and overridable per-share in ShareModal. *(ShareModal + share.js + config)*
 - [ ] **Pre-index workspace docs on every AI call** — gather full text of every `.md` file, pass as `<workspace>` XML block in system prompt (~500 tokens/file, cap ~80k total). *(AIChat.vue — expand `docContext`)*

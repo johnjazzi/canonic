@@ -1,24 +1,55 @@
 <template>
   <div class="editor-wrapper">
     <div class="editor-topbar">
-      <h1 class="doc-title">{{ docTitle }}</h1>
+      <input
+        v-if="renamingTitle"
+        ref="titleInput"
+        v-model="titleValue"
+        class="doc-title-input"
+        @keydown.enter="confirmTitleRename"
+        @keydown.esc="renamingTitle = false"
+        @blur="confirmTitleRename"
+      />
+      <h1 v-else class="doc-title" @dblclick="startTitleRename" title="Double-click to rename">{{ docTitle }}</h1>
       <div class="topbar-actions">
         <span v-if="store.isDirty" class="unsaved-label">Unsaved</span>
         <button class="action-btn" @click="save" :disabled="!store.isDirty">Save</button>
         <div class="topbar-divider" />
+        <div v-if="store.currentDocBranch !== 'main'" class="branch-pill">
+          <GitBranch :size="11" />
+          <span>{{ store.currentDocBranch }}</span>
+          <button class="merge-inline-btn" @click="showMergeConfirm = true" title="Merge into main">Merge → main</button>
+        </div>
         <button class="action-btn icon-label" @click="showVersionModal = true" title="Save a named version">
           <Tag :size="13" />
           Version
         </button>
-        <button class="action-btn icon-label" @click="showForkModal = true" title="Fork to new branch">
+        <button class="action-btn icon-label" @click="showForkModal = true" title="Fork to new branch draft">
           <GitFork :size="13" />
-          Fork
+          {{ store.currentDocBranch !== 'main' ? 'New Draft' : 'Fork' }}
         </button>
       </div>
     </div>
 
     <ForkDocModal v-if="showForkModal" @close="showForkModal = false" />
     <SaveVersionModal v-if="showVersionModal" @close="showVersionModal = false" />
+
+    <!-- Merge confirm overlay -->
+    <div v-if="showMergeConfirm" class="merge-confirm-overlay" @click.self="showMergeConfirm = false">
+      <div class="merge-confirm-box">
+        <p class="merge-confirm-title">Merge into main?</p>
+        <p class="merge-confirm-body">
+          This will merge <strong>{{ store.currentDocBranch }}</strong> into <strong>main</strong> and delete the branch.
+        </p>
+        <p v-if="mergeError" class="merge-confirm-error">{{ mergeError }}</p>
+        <div class="merge-confirm-actions">
+          <button class="merge-confirm-cancel" @click="showMergeConfirm = false">Cancel</button>
+          <button class="merge-confirm-ok" @click="doMerge" :disabled="isMerging">
+            {{ isMerging ? 'Merging…' : 'Merge' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div class="editor-scroll">
       <div class="editor-content" ref="editorContentEl" @mouseup="onMouseUp">
@@ -80,7 +111,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { MilkdownProvider } from '@milkdown/vue'
 import { useAppStore } from '../../store'
 import { v4 as uuidv4 } from 'uuid'
-import { MessageSquarePlus, Tag, GitFork } from 'lucide-vue-next'
+import { MessageSquarePlus, Tag, GitFork, GitBranch } from 'lucide-vue-next'
 import MilkdownEditor from './MilkdownEditor.vue'
 import ForkDocModal from '../modals/ForkDocModal.vue'
 import SaveVersionModal from '../modals/SaveVersionModal.vue'
@@ -88,17 +119,38 @@ import SaveVersionModal from '../modals/SaveVersionModal.vue'
 const store = useAppStore()
 const editorContentEl = ref(null)
 const commentTextareaEl = ref(null)
+const titleInput = ref(null)
 const localContent = ref('')
 
 const selectionPopover = ref({ visible: false, x: 0, y: 0, text: '' })
 const commentInput = ref({ visible: false, text: '' })
 const showForkModal = ref(false)
 const showVersionModal = ref(false)
+const showMergeConfirm = ref(false)
+const isMerging = ref(false)
+const mergeError = ref('')
+const renamingTitle = ref(false)
+const titleValue = ref('')
 
 const docTitle = computed(() => {
   if (!store.currentFile) return ''
   return store.currentFile.split('/').pop().replace('.md', '')
 })
+
+async function startTitleRename() {
+  titleValue.value = docTitle.value
+  renamingTitle.value = true
+  await nextTick()
+  titleInput.value?.focus()
+  titleInput.value?.select()
+}
+
+async function confirmTitleRename() {
+  const newName = titleValue.value.trim()
+  renamingTitle.value = false
+  if (!newName || newName === docTitle.value) return
+  await store.renameFile(store.currentFile, newName)
+}
 
 // Keep localContent in sync when store changes (file switch)
 watch(() => store.currentContent, (val) => {
@@ -178,6 +230,21 @@ function submitComment() {
   cancelComment()
 }
 
+async function doMerge() {
+  isMerging.value = true
+  mergeError.value = ''
+  try {
+    const result = await store.mergeBranch(store.currentDocBranch, '')
+    if (result?.success) {
+      showMergeConfirm.value = false
+    } else {
+      mergeError.value = result?.conflict ? 'Merge conflict — resolve manually.' : (result?.error || 'Merge failed.')
+    }
+  } finally {
+    isMerging.value = false
+  }
+}
+
 onMounted(() => {
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -212,6 +279,21 @@ onMounted(() => {
   color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.01em;
+  cursor: text;
+}
+
+.doc-title-input {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  background: var(--bg-hover);
+  border: 1px solid var(--accent-muted);
+  border-radius: 4px;
+  padding: 1px 8px;
+  outline: none;
+  font-family: inherit;
+  min-width: 120px;
 }
 
 .topbar-actions {
@@ -251,6 +333,110 @@ onMounted(() => {
   background: var(--border);
   margin: 0 4px;
 }
+
+.branch-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 7px;
+  border-radius: 20px;
+  border: 1px solid var(--accent-muted);
+  background: rgba(74, 122, 155, 0.08);
+  color: var(--accent);
+  font-size: 0.775rem;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.merge-inline-btn {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-muted);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.72rem;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.merge-inline-btn:hover { background: rgba(74, 122, 155, 0.15); }
+
+.merge-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.merge-confirm-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  width: 360px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.merge-confirm-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.merge-confirm-body {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.merge-confirm-error {
+  font-size: 0.8rem;
+  color: var(--error);
+  margin: 0;
+}
+
+.merge-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.merge-confirm-cancel {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.merge-confirm-cancel:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.merge-confirm-ok {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.merge-confirm-ok:hover:not(:disabled) { opacity: 0.85; }
+.merge-confirm-ok:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .editor-scroll {
   flex: 1;
