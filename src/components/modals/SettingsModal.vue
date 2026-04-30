@@ -23,24 +23,36 @@
         </div>
 
         <div class="field">
-          <label class="field-label">Anthropic API key <span class="optional">(optional)</span></label>
+          <label class="field-label">AI provider <span class="optional">(optional)</span></label>
+          <div class="preset-pills">
+            <button
+              v-for="p in providerPresets"
+              :key="p.url"
+              class="preset-pill"
+              :class="{ active: form.baseUrl === p.url }"
+              @click="applyPreset(p)"
+              type="button"
+            >{{ p.label }}</button>
+          </div>
+          <input v-model="form.baseUrl" class="field-input" placeholder="https://openrouter.ai/api/v1" style="margin-top:6px" />
+          <p class="field-hint">Any OpenAI-compatible endpoint. <strong>OpenRouter</strong> gives you access to every provider with one key.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label">API key <span class="optional">(optional)</span></label>
           <div class="secret-input">
-            <input v-model="form.apiKey" :type="showKey ? 'text' : 'password'" class="field-input" :class="{ error: errors.apiKey }" />
+            <input v-model="form.apiKey" :type="showKey ? 'text' : 'password'" class="field-input" />
             <button class="reveal-btn" @click="showKey = !showKey" type="button">{{ showKey ? 'Hide' : 'Show' }}</button>
           </div>
-          <p v-if="errors.apiKey" class="field-error">{{ errors.apiKey }}</p>
           <p class="field-hint warning">
             ⚠ Stored as plain text in <code>~/.canonic/config.json</code>. Do not commit that file.
           </p>
         </div>
 
         <div class="field">
-          <label class="field-label">AI model</label>
-          <select v-model="form.model" class="field-select">
-            <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (recommended)</option>
-            <option value="claude-opus-4-7">Claude Opus 4.7 (most capable)</option>
-            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fastest)</option>
-          </select>
+          <label class="field-label">Model</label>
+          <input v-model="form.model" class="field-input" placeholder="e.g. anthropic/claude-sonnet-4-5" />
+          <p class="field-hint">Enter any model ID supported by your provider.</p>
         </div>
       </div>
 
@@ -202,10 +214,25 @@ window.canonic.cleanup.getPaths().then(p => { cleanupPaths.value = p })
 const form = reactive({
   displayName: '',
   apiKey: '',
-  model: 'claude-sonnet-4-6',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  model: 'anthropic/claude-sonnet-4-5',
   defaultWorkspacePath: '',
   sharingDefaults: { scope: 'file', accessLevel: 'read' }
 })
+
+const providerPresets = [
+  { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-sonnet-4-5' },
+  { label: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-4o' },
+  { label: 'Mistral', url: 'https://api.mistral.ai/v1', model: 'mistral-large-latest' },
+  { label: 'DeepSeek', url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  { label: 'Groq', url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+  { label: 'Ollama (local)', url: 'http://localhost:11434/v1', model: 'llama3.2' },
+]
+
+function applyPreset(p) {
+  form.baseUrl = p.url
+  form.model = p.model
+}
 
 const scopeOptions = [
   { value: 'none', label: 'Nothing', desc: 'Sharing disabled by default' },
@@ -219,7 +246,8 @@ onMounted(async () => {
   if (cfg) {
     form.displayName = cfg.displayName || ''
     form.apiKey = cfg.apiKey || ''
-    form.model = cfg.model || 'claude-sonnet-4-6'
+    form.baseUrl = cfg.baseUrl || 'https://openrouter.ai/api/v1'
+    form.model = cfg.model || 'anthropic/claude-sonnet-4-5'
     form.defaultWorkspacePath = cfg.defaultWorkspacePath || ''
     form.sharingDefaults = JSON.parse(JSON.stringify({ ...form.sharingDefaults, ...(cfg.sharingDefaults || {}) }))
   }
@@ -421,6 +449,26 @@ async function copyUninstall() {
   padding: 1px 4px;
   border-radius: 3px;
 }
+
+.preset-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-pill {
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.775rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.preset-pill:hover { background: var(--bg-hover); color: var(--text-primary); }
+.preset-pill.active { background: var(--accent-muted); border-color: var(--accent); color: var(--text-primary); }
 
 .secret-input, .path-input { display: flex; gap: 8px; }
 .secret-input .field-input, .path-input .field-input { flex: 1; }

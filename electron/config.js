@@ -8,7 +8,8 @@ const CONFIG_PATH = path.join(CANONIC_DIR, 'config.json')
 const DEFAULTS = {
   displayName: os.userInfo().username,
   apiKey: '',
-  model: 'claude-sonnet-4-6',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  model: 'anthropic/claude-sonnet-4-5',
   defaultWorkspacePath: path.join(os.homedir(), 'canonic'),
   sharingDefaults: {
     scope: 'file',       // none | file | directory | workspace

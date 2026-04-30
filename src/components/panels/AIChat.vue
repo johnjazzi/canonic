@@ -58,7 +58,8 @@ const streamBuffer = ref('')
 const sessionStats = ref({ messages: 0, approxTokens: 0 })
 
 const getApiKey = () => store.config?.apiKey
-const getModel = () => store.config?.model || 'claude-sonnet-4-6'
+const getModel = () => store.config?.model || 'anthropic/claude-sonnet-4-5'
+const getBaseUrl = () => store.config?.baseUrl || 'https://openrouter.ai/api/v1'
 
 const suggestions = [
   "What's missing from this document?",
@@ -111,7 +112,7 @@ async function sendMessage() {
     messages.value.push({
       id: uuidv4(),
       role: 'assistant',
-      content: 'No API key configured. Open Settings (gear icon) → Profile & AI to add your Anthropic API key.'
+      content: 'No API key configured. Open Settings → AI to add your API key.'
     })
     return
   }
@@ -159,7 +160,8 @@ async function sendMessage() {
     messages: contextMessages,
     system: SYSTEM_PROMPT + docContext,
     model: getModel(),
-    apiKey
+    apiKey,
+    baseUrl: getBaseUrl()
   })
 }
 
