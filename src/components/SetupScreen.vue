@@ -2,7 +2,10 @@
   <div class="setup-screen">
     <div class="setup-card">
       <div class="logo">
-        <span class="logo-text">canonic</span><span class="logo-dot">.ai</span>
+        <img src="/canonical-logo.svg" alt="canonic" class="logo-img" />
+        <div class="logo-wordmark">
+          <span class="logo-text">canonic</span><span class="logo-dot">.ai</span>
+        </div>
       </div>
       <p class="tagline">Write. Version. Think.</p>
 
@@ -200,10 +203,23 @@ async function save() {
 }
 
 .logo {
-  font-size: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.logo-img {
+  width: 64px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.logo-wordmark {
+  font-size: 1.75rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  margin-bottom: 4px;
   text-align: center;
 }
 

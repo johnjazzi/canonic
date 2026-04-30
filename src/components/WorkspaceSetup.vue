@@ -7,6 +7,7 @@
     <div v-else class="workspace-card">
       <div class="card-header">
         <div class="logo">
+          <img src="/canonical-logo.svg" alt="canonic" class="logo-img" />
           <span class="logo-text">canonic</span><span class="logo-dot">.ai</span>
         </div>
         <button class="settings-link" @click="showSettings = true">Settings</button>
@@ -242,9 +243,18 @@ function formatTime(ts) {
 }
 
 .logo {
-  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.5rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+.logo-img {
+  width: 40px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .logo-text { color: var(--text-primary); }

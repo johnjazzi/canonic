@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const configService = require('./config')
+const { autoUpdater } = require('electron-updater')
 
 // Suppress harmless Chrome DevTools autofill protocol errors
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication')
@@ -32,25 +33,50 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     },
-    backgroundColor: '#1a1a2e'
+    backgroundColor: '#0C0E12'
   })
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
+    // DevTools can be opened manually with Cmd+Option+I / F12
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+  }
+
+  // Allow opening DevTools via keyboard shortcut in dev
+  if (isDev) {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      if ((input.meta || input.control) && input.alt && input.key === 'i') {
+        mainWindow.webContents.toggleDevTools()
+      }
+    })
   }
 }
 
 app.whenReady().then(() => {
   createWindow()
   setupIpcHandlers()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+function setupAutoUpdater() {
+  if (isDev) return
+
+  autoUpdater.autoDownload = false
+  autoUpdater.checkForUpdatesAndNotify()
+
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('update:available', info)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('update:downloaded', info)
+  })
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
@@ -260,5 +286,15 @@ function setupIpcHandlers() {
       defaultWorkspace: config?.defaultWorkspacePath || null,
       currentWorkspace: null
     }
+  })
+
+  // --- Updates ---
+  ipcMain.handle('update:check', async () => {
+    if (isDev) return { isDev: true }
+    return autoUpdater.checkForUpdates()
+  })
+
+  ipcMain.handle('update:install', async () => {
+    autoUpdater.quitAndInstall()
   })
 }

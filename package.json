@@ -4,7 +4,7 @@
   "description": "Local-first markdown document editor with git versioning",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "concurrently \"vite --port 5173\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build && electron-builder",
     "preview": "vite preview",
     "electron": "electron ."
@@ -17,6 +17,7 @@
     "@milkdown/vue": "^7.5.0",
     "@vueuse/core": "^10.11.0",
     "bonjour-service": "^1.2.1",
+    "electron-updater": "^6.8.3",
     "express": "^4.21.2",
     "flexsearch": "^0.8.212",
     "isomorphic-git": "^1.27.2",
@@ -40,8 +41,14 @@
     "directories": {
       "output": "dist-electron"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "johnazzinaro",
+      "repo": "canonic"
+    },
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "target": [{ "target": "dmg", "arch": ["universal"] }]
     },
     "linux": {
       "target": "AppImage"

@@ -69,5 +69,13 @@ contextBridge.exposeInMainWorld('canonic', {
     resetConfig: () => ipcRenderer.invoke('cleanup:reset-config'),
     deleteWorkspace: (path) => ipcRenderer.invoke('cleanup:delete-workspace', path),
     getPaths: () => ipcRenderer.invoke('cleanup:get-paths')
+  },
+
+  // Updates
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onAvailable: (cb) => ipcRenderer.on('update:available', (_, info) => cb(info)),
+    onDownloaded: (cb) => ipcRenderer.on('update:downloaded', (_, info) => cb(info))
   }
 })

@@ -3,6 +3,7 @@
     <!-- Titlebar -->
     <div class="titlebar">
       <div class="titlebar-left">
+        <img src="/canonical-logo.svg" alt="" class="titlebar-logo" />
         <span class="app-name">canonic<span class="accent">.ai</span></span>
         <div class="branch-selector" @click.stop="showBranchMenu = !showBranchMenu" v-if="store.workspacePath">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -78,6 +79,13 @@
       </aside>
     </div>
 
+    <!-- Update banner -->
+    <div v-if="updateReady" class="update-banner">
+      <span>A new version of Canonic is ready.</span>
+      <button class="update-btn" @click="installUpdate">Restart & Update</button>
+      <button class="update-dismiss" @click="updateReady = false">Later</button>
+    </div>
+
     <!-- Click-outside backdrop for branch menu -->
     <div v-if="showBranchMenu" class="menu-backdrop" @click="showBranchMenu = false" />
 
@@ -110,8 +118,17 @@ const showCommit = ref(false)
 const showShare = ref(false)
 const showNewDoc = ref(false)
 const showSettings = ref(false)
+const updateReady = ref(false)
 
 provide('showNewDoc', () => { showNewDoc.value = true })
+
+if (window.canonic?.update) {
+  window.canonic.update.onDownloaded(() => { updateReady.value = true })
+}
+
+function installUpdate() {
+  window.canonic?.update.install()
+}
 
 async function newDoc() {
   showNewDoc.value = true
@@ -138,6 +155,14 @@ async function newDoc() {
   -webkit-app-region: drag;
   flex-shrink: 0;
   padding-left: 80px; /* room for macOS traffic lights */
+}
+
+.titlebar-logo {
+  width: 28px;
+  height: 14px;
+  object-fit: contain;
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 
 .app-name {
@@ -291,4 +316,45 @@ async function newDoc() {
   inset: 0;
   z-index: 199;
 }
+
+.update-banner {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  z-index: 500;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.update-btn {
+  padding: 6px 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.update-btn:hover { opacity: 0.85; }
+
+.update-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.update-dismiss:hover { color: var(--text-secondary); }
 </style>
