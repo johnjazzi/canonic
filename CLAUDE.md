@@ -41,14 +41,14 @@ All async operations (file I/O, git, comments) are store actions that call `wind
 - `comments:get/save` — comment persistence (`.canonic/comments/<docId>.json`)
 - `share:start/stop` — Cloudflare tunnel via bundled `cloudflared`
 - `search:index/query` — FlexSearch full-text index (in-memory, re-indexed on open/save)
-- `ai:chat` — streams Claude API responses from main process (keeps API key out of renderer)
+- `ai:chat` — streams LLM responses via OpenAI-compatible chat completions format (any provider); keeps API key out of renderer
 - `config:read/write` — user config at `~/.canonic/config.json`
 
 **Demo mode** (`store.enableDemoMode()`): loads `public/demo/config.json`, opens a workspace using a named template, injects mock peer data and comments into the store. The demo config drives which template creates the workspace files and which quoted-text anchors get demo comments.
 
 **Sharing** uses a bundled `cloudflared` binary (in `electron/resources/`) to open a Cloudflare Tunnel. Token auth validates recipients. Local network sharing uses mDNS.
 
-**AI sidebar** streams from Claude API via `ai:chat` IPC. The system prompt is tuned to ask questions and challenge assumptions rather than write content. Document context is passed on every message.
+**AI sidebar** streams via `ai:chat` IPC using OpenAI-compatible chat completions format. Works with any OpenAI-compatible endpoint (OpenRouter, OpenAI, Mistral, DeepSeek, Groq, Ollama). Config fields: `baseUrl`, `apiKey`, `model`. Default provider is OpenRouter. The system prompt challenges assumptions rather than writing content.
 
 ## Key conventions
 
