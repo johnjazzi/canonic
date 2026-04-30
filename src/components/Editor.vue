@@ -8,80 +8,99 @@
       </div>
     </div>
 
-    <!-- Comment highlights overlay is handled via CSS marks in the editor -->
     <div class="editor-scroll">
-      <div
-        ref="editorEl"
-        class="editor-content"
-        @mouseup="onMouseUp"
-      >
-        <textarea
-          ref="textareaEl"
-          class="markdown-input"
-          v-model="localContent"
-          @input="onInput"
-          @scroll="onScroll"
-          spellcheck="true"
-          :placeholder="placeholder"
-        />
+      <div class="editor-content" ref="editorContentEl" @mouseup="onMouseUp">
+        <MilkdownProvider :key="store.currentFile">
+          <MilkdownEditor
+            :content="store.currentContent"
+            :comments="store.comments"
+            @update="onContentUpdate"
+          />
+        </MilkdownProvider>
       </div>
     </div>
 
     <!-- Selection comment popover -->
     <div
-      v-if="selectionPopover.visible"
+      v-if="selectionPopover.visible && !commentInput.visible"
       class="comment-popover"
       :style="{ top: selectionPopover.y + 'px', left: selectionPopover.x + 'px' }"
     >
-      <button class="popover-btn" @click="addSelectionComment">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0113.25 12H9.06l-2.573 2.573A1.457 1.457 0 014 13.543V12H2.75A1.75 1.75 0 011 10.25v-7.5z"/>
-        </svg>
+      <button class="popover-btn" @click="openCommentInput">
+        <MessageSquarePlus :size="13" />
         Add comment
       </button>
+    </div>
+
+    <!-- Inline comment input -->
+    <div
+      v-if="commentInput.visible"
+      class="comment-input-box"
+      :style="{ top: selectionPopover.y + 'px', left: selectionPopover.x + 'px' }"
+      @click.stop
+      @mousedown.stop
+    >
+      <div class="comment-quoted">
+        <span class="comment-quote-bar" />
+        <span class="comment-quote-text">{{ truncateQuote(selectionPopover.text) }}</span>
+      </div>
+      <textarea
+        ref="commentTextareaEl"
+        v-model="commentInput.text"
+        class="comment-textarea"
+        placeholder="Add a comment…"
+        rows="3"
+        @keydown.ctrl.enter="submitComment"
+        @keydown.meta.enter="submitComment"
+        @keydown.esc="cancelComment"
+      />
+      <div class="comment-input-actions">
+        <span class="comment-input-hint">⌘↩ to submit</span>
+        <button class="comment-cancel-btn" @click="cancelComment">Cancel</button>
+        <button class="comment-submit-btn" @click="submitComment" :disabled="!commentInput.text.trim()">Comment</button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { MilkdownProvider } from '@milkdown/vue'
 import { useAppStore } from '../store'
 import { v4 as uuidv4 } from 'uuid'
+import { MessageSquarePlus } from 'lucide-vue-next'
+import MilkdownEditor from './MilkdownEditor.vue'
 
 const store = useAppStore()
-const editorEl = ref(null)
-const textareaEl = ref(null)
+const editorContentEl = ref(null)
+const commentTextareaEl = ref(null)
 const localContent = ref('')
 
-const selectionPopover = ref({ visible: false, x: 0, y: 0, text: '', start: 0, end: 0 })
-const pendingComment = ref(null)
-
-const placeholder = `Start writing...
-
-Use # for headings, **bold**, _italic_, - for lists.
-
-Select any text to add a comment.`
+const selectionPopover = ref({ visible: false, x: 0, y: 0, text: '' })
+const commentInput = ref({ visible: false, text: '' })
 
 const docTitle = computed(() => {
   if (!store.currentFile) return ''
   return store.currentFile.split('/').pop().replace('.md', '')
 })
 
+// Keep localContent in sync when store changes (file switch)
 watch(() => store.currentContent, (val) => {
-  if (val !== localContent.value) {
-    localContent.value = val || ''
-  }
+  localContent.value = val || ''
 }, { immediate: true })
 
-function onInput() {
-  store.isDirty = true
+function onContentUpdate(markdown) {
+  localContent.value = markdown
+  if (markdown !== store.currentContent) {
+    store.isDirty = true
+  }
 }
 
 async function save() {
   await store.saveFile(localContent.value)
 }
 
-// Auto-save every 30s if dirty
+// Auto-save every 30s when dirty
 let autoSaveTimer = null
 watch(() => store.isDirty, (dirty) => {
   if (dirty) {
@@ -90,63 +109,59 @@ watch(() => store.isDirty, (dirty) => {
   }
 })
 
-function onMouseUp(e) {
+function onMouseUp() {
+  if (commentInput.value.visible) return
   const selection = window.getSelection()
   if (!selection || selection.isCollapsed || !selection.toString().trim()) {
     selectionPopover.value.visible = false
     return
   }
 
-  const selectedText = selection.toString()
-  const textarea = textareaEl.value
-  const start = textarea.selectionStart
-  const end = textarea.selectionEnd
-
-  if (start === end) {
-    selectionPopover.value.visible = false
-    return
-  }
-
-  const rect = selection.getRangeAt(0).getBoundingClientRect()
-  const wrapperRect = editorEl.value.getBoundingClientRect()
+  const selectedText = selection.toString().trim()
+  const range = selection.getRangeAt(0)
+  const rect = range.getBoundingClientRect()
+  const wrapperRect = editorContentEl.value.getBoundingClientRect()
 
   selectionPopover.value = {
     visible: true,
-    x: rect.left - wrapperRect.left,
-    y: rect.top - wrapperRect.top - 40,
-    text: selectedText,
-    start,
-    end
+    x: Math.max(0, rect.left - wrapperRect.left),
+    y: rect.top - wrapperRect.top - 44,
+    text: selectedText
   }
 }
 
-function addSelectionComment() {
-  const { text, start, end } = selectionPopover.value
-  selectionPopover.value.visible = false
+function truncateQuote(text, len = 80) {
+  return text.length > len ? text.slice(0, len) + '…' : text
+}
 
-  const commentText = prompt('Add a comment:')
-  if (!commentText) return
+async function openCommentInput() {
+  commentInput.value = { visible: true, text: '' }
+  await nextTick()
+  commentTextareaEl.value?.focus()
+}
+
+function cancelComment() {
+  commentInput.value = { visible: false, text: '' }
+  selectionPopover.value.visible = false
+}
+
+function submitComment() {
+  const text = commentInput.value.text.trim()
+  if (!text) return
 
   store.addComment({
     id: uuidv4(),
     author: store.config?.displayName || 'You',
     type: 'selection',
-    anchor: {
-      quotedText: text,
-      start,
-      end
-    },
-    text: commentText,
+    anchor: { quotedText: selectionPopover.value.text },
+    text,
     resolved: false,
     createdAt: new Date().toISOString()
   })
+
+  cancelComment()
 }
 
-function onScroll() {
-  // Could sync scroll with comments panel here
-}
-
-// Keyboard shortcut: Cmd+S to save
 onMounted(() => {
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -221,22 +236,6 @@ onMounted(() => {
   min-height: 100%;
 }
 
-.markdown-input {
-  width: 100%;
-  min-height: 60vh;
-  background: transparent;
-  border: none;
-  outline: none;
-  resize: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9375rem;
-  line-height: 1.75;
-  color: var(--text-primary);
-  caret-color: var(--accent);
-}
-
-.markdown-input::placeholder { color: var(--text-muted); }
-
 .comment-popover {
   position: absolute;
   z-index: 100;
@@ -262,4 +261,272 @@ onMounted(() => {
 }
 
 .popover-btn:hover { background: var(--bg-hover); }
+
+.comment-input-box {
+  position: absolute;
+  z-index: 101;
+  width: 280px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-quoted {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.comment-quote-bar {
+  width: 3px;
+  min-height: 16px;
+  background: var(--accent);
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.comment-quote-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.comment-textarea {
+  width: 100%;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--text-primary);
+  font-size: 0.8375rem;
+  font-family: 'Inter', sans-serif;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.comment-textarea:focus { border-color: var(--accent-muted); }
+.comment-textarea::placeholder { color: var(--text-muted); }
+
+.comment-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comment-input-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+.comment-cancel-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.comment-cancel-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.comment-submit-btn {
+  padding: 4px 12px;
+  border-radius: 5px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.comment-submit-btn:hover:not(:disabled) { opacity: 0.85; }
+.comment-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+
+<!-- Global: style the Milkdown / ProseMirror editor to match HAL2001 theme -->
+<style>
+.milkdown {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.milkdown .ProseMirror {
+  outline: none;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+  caret-color: var(--accent);
+  min-height: 60vh;
+}
+
+.milkdown .ProseMirror h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 1.5em 0 0.5em;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3em;
+}
+
+.milkdown .ProseMirror h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 1.4em 0 0.4em;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.milkdown .ProseMirror h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 1.2em 0 0.3em;
+}
+
+.milkdown .ProseMirror h4,
+.milkdown .ProseMirror h5,
+.milkdown .ProseMirror h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 1em 0 0.25em;
+}
+
+.milkdown .ProseMirror p {
+  margin: 0 0 1em;
+  color: var(--text-primary);
+}
+
+.milkdown .ProseMirror strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.milkdown .ProseMirror em {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.milkdown .ProseMirror code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  background: var(--bg-hover);
+  color: var(--secondary);
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.milkdown .ProseMirror pre {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.milkdown .ProseMirror pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.milkdown .ProseMirror ul,
+.milkdown .ProseMirror ol {
+  padding-left: 1.75em;
+  margin: 0.5em 0 1em;
+}
+
+.milkdown .ProseMirror li {
+  margin: 0.25em 0;
+  color: var(--text-primary);
+}
+
+.milkdown .ProseMirror li p { margin: 0; }
+
+.milkdown .ProseMirror blockquote {
+  border-left: 3px solid var(--accent-muted);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.milkdown .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+
+.milkdown .ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Comment highlights */
+.comment-highlight {
+  background: rgba(251, 191, 36, 0.18);
+  border-bottom: 2px solid rgba(251, 191, 36, 0.7);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.comment-highlight:hover {
+  background: rgba(251, 191, 36, 0.35);
+}
+
+.demo-highlight {
+  background: rgba(139, 92, 246, 0.15);
+  border-bottom: 2px solid rgba(139, 92, 246, 0.6);
+}
+
+.demo-highlight:hover {
+  background: rgba(139, 92, 246, 0.28);
+}
+
+.agent-highlight {
+  background: rgba(74, 222, 128, 0.15);
+  border-bottom: 2px solid rgba(74, 222, 128, 0.6);
+}
+
+.agent-highlight:hover {
+  background: rgba(74, 222, 128, 0.28);
+}
+
+/* Placeholder */
+.milkdown .ProseMirror.ProseMirror-empty::before {
+  content: 'Start writing…';
+  color: var(--text-muted);
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Selection */
+.milkdown .ProseMirror ::selection {
+  background: rgba(74, 122, 155, 0.3);
+}
 </style>

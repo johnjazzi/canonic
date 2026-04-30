@@ -3,9 +3,7 @@
     <div class="tree-header">
       <span class="section-label">Documents</span>
       <button class="add-btn" @click="showNewDoc()" title="New document">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M7.75 2a.75.75 0 01.75.75V7h4.25a.75.75 0 110 1.5H8.5v4.25a.75.75 0 11-1.5 0V8.5H2.75a.75.75 0 010-1.5H7V2.75A.75.75 0 017.75 2z"/>
-        </svg>
+        <FilePlus :size="14" />
       </button>
     </div>
     <div class="tree-body">
@@ -26,6 +24,7 @@
 import { inject } from 'vue'
 import { useAppStore } from '../store'
 import TreeNode from './TreeNode.vue'
+import { FilePlus } from 'lucide-vue-next'
 
 const store = useAppStore()
 const showNewDoc = inject('showNewDoc')

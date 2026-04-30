@@ -68,7 +68,13 @@ function search(query, workspacePath) {
     })
   }
 
-  return results.sort((a, b) => b.score - a.score).slice(0, 20)
+  // Filter to own workspace only. Peer docs (type:'peer') will be included once
+  // peer indexing is wired up and they carry an explicit workspace key.
+  const filtered = workspacePath
+    ? results.filter(r => r.workspace === workspacePath)
+    : results
+
+  return filtered.sort((a, b) => b.score - a.score).slice(0, 20)
 }
 
 function escapeRe(str) {

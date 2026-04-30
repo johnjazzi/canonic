@@ -7,7 +7,10 @@
     "dev": "concurrently \"vite --port 5173\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build && electron-builder",
     "preview": "vite preview",
-    "electron": "electron ."
+    "electron": "electron .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@milkdown/core": "^7.5.0",
@@ -21,6 +24,7 @@
     "express": "^4.21.2",
     "flexsearch": "^0.8.212",
     "isomorphic-git": "^1.27.2",
+    "lucide-vue-next": "^1.0.0",
     "node-fetch": "^3.3.2",
     "pinia": "^2.2.6",
     "uuid": "^10.0.0",
@@ -29,10 +33,14 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "@vue/test-utils": "^2.4.10",
     "concurrently": "^9.1.2",
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
+    "happy-dom": "^17.6.1",
     "vite": "^6.0.5",
+    "vitest": "^3.2.4",
     "wait-on": "^8.0.1"
   },
   "build": {
@@ -48,7 +56,14 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
-      "target": [{ "target": "dmg", "arch": ["universal"] }]
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
     },
     "linux": {
       "target": "AppImage"

@@ -297,4 +297,52 @@ function setupIpcHandlers() {
   ipcMain.handle('update:install', async () => {
     autoUpdater.quitAndInstall()
   })
+
+  // --- AI Chat ---
+  ipcMain.handle('ai:chat', async (event, { messages, system, model, apiKey }) => {
+    if (!apiKey) {
+      event.sender.send('ai:error', 'No API key configured. Open Settings to add your Anthropic API key.')
+      return
+    }
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ model, max_tokens: 1024, system, messages, stream: true })
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        event.sender.send('ai:error', err.error?.message || `API error ${response.status}`)
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6).trim()
+          if (!data) continue
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+              event.sender.send('ai:chunk', parsed.delta.text)
+            }
+          } catch {}
+        }
+      }
+      event.sender.send('ai:done')
+    } catch (err) {
+      event.sender.send('ai:error', err.message)
+    }
+  })
 }

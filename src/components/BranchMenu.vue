@@ -8,13 +8,9 @@
         :class="['branch-item', branch === store.currentBranch && 'active']"
         @click="switchBranch(branch)"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M11.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122V6A2.5 2.5 0 019 8.5H7a1 1 0 00-1 1v1.128a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 111.5 0v1.836A2.492 2.492 0 017 7h2a1 1 0 001-1v-.628A2.25 2.25 0 019.5 3.25z"/>
-        </svg>
+        <GitBranch :size="12" />
         {{ branch }}
-        <svg v-if="branch === store.currentBranch" width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="margin-left: auto">
-          <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
-        </svg>
+        <Check v-if="branch === store.currentBranch" :size="12" style="margin-left: auto" />
       </button>
     </div>
 
@@ -39,9 +35,7 @@
     <div v-if="store.branches.length > 1" class="menu-section">
       <div class="menu-divider" />
       <button class="merge-trigger" @click="showMerge = true">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218zm1.55 5.596a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0zm4.5-2.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zM4 4.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0z"/>
-        </svg>
+        <GitMerge :size="12" />
         Merge a branch into main…
       </button>
     </div>
@@ -63,6 +57,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useAppStore } from '../store'
+import { GitBranch, Check, GitMerge } from 'lucide-vue-next'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()

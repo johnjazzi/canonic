@@ -23,9 +23,7 @@
             class="recent-item"
             @click="openRecent(ws.path)"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="folder-icon">
-              <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/>
-            </svg>
+            <Folder :size="14" class="folder-icon" />
             <div class="recent-info">
               <span class="recent-name">{{ ws.name }}</span>
               <span class="recent-path">{{ ws.path }}</span>
@@ -40,18 +38,23 @@
         <p class="section-label">{{ store.recentWorkspaces.length > 0 ? 'Or' : 'Get started' }}</p>
         <div class="action-btns">
           <button class="action-btn" @click="showNewWorkspace = true">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M7.75 2a.75.75 0 01.75.75V7h4.25a.75.75 0 110 1.5H8.5v4.25a.75.75 0 11-1.5 0V8.5H2.75a.75.75 0 010-1.5H7V2.75A.75.75 0 017.75 2z"/>
-            </svg>
+            <FolderPlus :size="15" />
             New workspace
           </button>
           <button class="action-btn" @click="openExisting">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/>
-            </svg>
+            <FolderOpen :size="15" />
             Open folder
           </button>
         </div>
+      </div>
+
+      <!-- Demo mode -->
+      <div class="section demo-section">
+        <button class="demo-btn" @click="tryDemo" :disabled="launchingDemo">
+          <Sparkles :size="14" />
+          {{ launchingDemo ? 'Setting up demo…' : 'Try a demo' }}
+        </button>
+        <p class="demo-hint">Explore a pre-filled PM workspace with simulated peer comments — no setup needed.</p>
       </div>
 
       <p v-if="error" class="error">{{ error }}</p>
@@ -120,6 +123,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '../store'
 import SetupScreen from './SetupScreen.vue'
 import SettingsModal from './SettingsModal.vue'
+import { Folder, FolderPlus, FolderOpen, Sparkles } from 'lucide-vue-next'
 
 const router = useRouter()
 const store = useAppStore()
@@ -129,6 +133,7 @@ const showNewWorkspace = ref(false)
 const showSettings = ref(false)
 const error = ref('')
 const creating = ref(false)
+const launchingDemo = ref(false)
 
 const newName = ref('')
 const newPath = ref('')
@@ -198,6 +203,19 @@ async function createWorkspace() {
     showNewWorkspace.value = false
   } finally {
     creating.value = false
+  }
+}
+
+async function tryDemo() {
+  launchingDemo.value = true
+  error.value = ''
+  try {
+    await store.enableDemoMode()
+    router.push('/workspace')
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    launchingDemo.value = false
   }
 }
 
@@ -328,6 +346,40 @@ function formatTime(ts) {
 .action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .error { color: var(--error); font-size: 0.8125rem; margin-top: 12px; text-align: center; }
+
+.demo-section { border-top: 1px solid var(--border); padding-top: 20px; }
+
+.demo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.demo-btn:hover:not(:disabled) {
+  border-color: var(--accent-muted);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.demo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.demo-hint {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+}
 
 /* Modal */
 .modal-backdrop {

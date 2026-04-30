@@ -1,9 +1,7 @@
 <template>
   <div class="search-panel">
     <div class="search-input-row">
-      <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M10.68 11.74a6 6 0 01-7.922-8.982 6 6 0 018.982 7.922l3.04 3.04a.749.749 0 11-1.06 1.06l-3.04-3.04zm-5.42-1.617a4.5 4.5 0 006.344-6.344 4.5 4.5 0 00-6.344 6.344z"/>
-      </svg>
+      <Search :size="14" class="search-icon" />
       <input
         v-model="query"
         class="search-input"
@@ -40,6 +38,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useAppStore } from '../store'
+import { Search } from 'lucide-vue-next'
 
 const store = useAppStore()
 const query = ref('')

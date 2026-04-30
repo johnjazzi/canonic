@@ -221,7 +221,7 @@ onMounted(async () => {
     form.apiKey = cfg.apiKey || ''
     form.model = cfg.model || 'claude-sonnet-4-6'
     form.defaultWorkspacePath = cfg.defaultWorkspacePath || ''
-    form.sharingDefaults = { ...form.sharingDefaults, ...(cfg.sharingDefaults || {}) }
+    form.sharingDefaults = JSON.parse(JSON.stringify({ ...form.sharingDefaults, ...(cfg.sharingDefaults || {}) }))
   }
 })
 
@@ -236,7 +236,7 @@ async function save() {
   saveSuccess.value = false
   errors.value = {}
 
-  const result = await store.saveConfig({ ...form })
+  const result = await store.saveConfig(JSON.parse(JSON.stringify(form)))
   saving.value = false
 
   if (result.success) {

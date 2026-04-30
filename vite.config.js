@@ -16,5 +16,16 @@ export default defineConfig({
   },
   server: {
     port: 5173
+  },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    include: ['tests/**/*.test.{js,ts}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/**', 'electron/**'],
+      exclude: ['src/main.js']
+    }
   }
 })

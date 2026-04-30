@@ -176,7 +176,7 @@ async function browsePath() {
 
 async function save() {
   saving.value = true
-  const result = await store.saveConfig({ ...form })
+  const result = await store.saveConfig(JSON.parse(JSON.stringify(form)))
   saving.value = false
   if (result.success) {
     emit('done')

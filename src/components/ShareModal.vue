@@ -9,9 +9,7 @@
 
       <div v-if="!store.shareInfo">
         <div class="info-box">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm8-6.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM6.5 7.75A.75.75 0 017.25 7h1a.75.75 0 01.75.75v2.75h.25a.75.75 0 010 1.5h-2a.75.75 0 010-1.5h.25v-2h-.25a.75.75 0 01-.75-.75zM8 6a1 1 0 110-2 1 1 0 010 2z"/>
-          </svg>
+          <Info :size="14" style="flex-shrink:0" />
           <span>
             When you share, a secure link is generated. The document is served directly
             from your machine while this app is open. Anyone with the link and permission token can view it.
@@ -49,9 +47,7 @@
         </div>
 
         <div v-if="!store.shareInfo.tunnelUrl" class="tunnel-hint">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575zm1.763.707a.25.25 0 00-.44 0L1.698 13.132a.25.25 0 00.22.368h12.164a.25.25 0 00.22-.368zM8 6a.75.75 0 01.75.75v3.5a.75.75 0 11-1.5 0v-3.5A.75.75 0 018 6zm.75 8a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/>
-          </svg>
+          <TriangleAlert :size="13" style="flex-shrink:0" />
           Public tunnel not available. Install cloudflared for internet sharing:
           <code>brew install cloudflared</code>
         </div>
@@ -72,6 +68,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useAppStore } from '../store'
+import { Info, TriangleAlert } from 'lucide-vue-next'
 
 const emit = defineEmits(['close'])
 const store = useAppStore()

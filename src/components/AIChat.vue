@@ -2,7 +2,7 @@
   <div class="ai-chat">
     <div class="chat-messages" ref="messagesEl">
       <div class="ai-intro" v-if="messages.length === 0">
-        <div class="ai-avatar">✦</div>
+        <div class="ai-avatar"><Sparkles :size="20" /></div>
         <p>I'm here to help you think through your document — not write it for you.</p>
         <p class="hint">I can challenge your assumptions, spot gaps, ask clarifying questions, or research facts.</p>
         <div class="suggestion-chips">
@@ -19,6 +19,14 @@
       </div>
     </div>
 
+    <!-- Usage stats -->
+    <div v-if="sessionStats.messages > 0" class="usage-bar">
+      <span class="usage-stat">{{ sessionStats.messages }} msg{{ sessionStats.messages !== 1 ? 's' : '' }}</span>
+      <span class="usage-sep">·</span>
+      <span class="usage-stat">~{{ sessionStats.approxTokens.toLocaleString() }} tokens est.</span>
+      <span v-if="sessionStats.approxTokens > 80000" class="usage-warn" title="Approaching context limit">⚠ Approaching limit</span>
+    </div>
+
     <div class="chat-input-area">
       <textarea
         v-model="userInput"
@@ -27,19 +35,18 @@
         @keydown.enter.prevent="handleEnter"
         rows="2"
       />
-      <button class="send-btn" @click="sendMessage" :disabled="!userInput.trim() || streaming">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8.75.75V11.44l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 011.06-1.06L7.25 11.44V.75a.75.75 0 011.5 0z" transform="rotate(180, 8, 8)"/>
-        </svg>
+      <button class="send-btn" @click="sendMessage" :disabled="!userInput.trim() || streaming" title="Send">
+        <SendHorizonal :size="14" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onUnmounted } from 'vue'
 import { useAppStore } from '../store'
 import { v4 as uuidv4 } from 'uuid'
+import { Sparkles, SendHorizonal } from 'lucide-vue-next'
 
 const store = useAppStore()
 const messagesEl = ref(null)
@@ -48,7 +55,9 @@ const messages = ref([])
 const streaming = ref(false)
 const streamBuffer = ref('')
 
-const getApiKey = () => store.config?.apiKey || import.meta.env.VITE_ANTHROPIC_API_KEY
+const sessionStats = ref({ messages: 0, approxTokens: 0 })
+
+const getApiKey = () => store.config?.apiKey
 const getModel = () => store.config?.model || 'claude-sonnet-4-6'
 
 const suggestions = [
@@ -64,18 +73,14 @@ Your behaviors:
 - Ask clarifying questions that expose gaps or unstated assumptions
 - Challenge claims that need more evidence or reasoning
 - Surface risks or edge cases the author may not have considered
-- Research specific facts when asked (using web search if available)
 - Keep responses concise and conversational — this is a thinking dialogue, not an essay
 
 Your constraints:
 - Never write paragraphs that could replace sections of the document
 - Never suggest "here's what you could write" — instead ask "what do you mean by X?"
-- If asked to write something, redirect: "I can help you think through it — what's the core thing you're trying to say?"
-
-The current document content will be provided as context.`
+- If asked to write something, redirect: "I can help you think through it — what's the core thing you're trying to say?"`
 
 function renderMarkdown(text) {
-  // Simple markdown render — bold, italic, code
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -106,7 +111,7 @@ async function sendMessage() {
     messages.value.push({
       id: uuidv4(),
       role: 'assistant',
-      content: 'No API key configured. Open Settings (gear icon) to add your Anthropic API key.'
+      content: 'No API key configured. Open Settings (gear icon) → Profile & AI to add your Anthropic API key.'
     })
     return
   }
@@ -114,67 +119,48 @@ async function sendMessage() {
   streaming.value = true
   streamBuffer.value = ''
 
-  try {
-    const contextMessages = messages.value.slice(-10).map(m => ({
-      role: m.role,
-      content: m.content
-    }))
+  // Clean up any previous listeners before adding new ones
+  window.canonic.ai.removeListeners()
 
-    const docContext = store.currentContent
-      ? `\n\n<document>\n${store.currentContent.slice(0, 4000)}\n</document>`
-      : ''
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: getModel(),
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT + docContext,
-        messages: contextMessages,
-        stream: true
-      })
-    })
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      const chunk = decoder.decode(value)
-      const lines = chunk.split('\n').filter(l => l.startsWith('data: '))
-
-      for (const line of lines) {
-        const data = line.slice(6)
-        if (data === '[DONE]') continue
-        try {
-          const parsed = JSON.parse(data)
-          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-            streamBuffer.value += parsed.delta.text
-            scrollToBottom()
-          }
-        } catch {}
-      }
-    }
-
-    messages.value.push({ id: uuidv4(), role: 'assistant', content: streamBuffer.value })
-    streamBuffer.value = ''
-  } catch (err) {
-    messages.value.push({
-      id: uuidv4(),
-      role: 'assistant',
-      content: `Error: ${err.message}`
-    })
-  } finally {
-    streaming.value = false
+  window.canonic.ai.onChunk((text) => {
+    streamBuffer.value += text
     scrollToBottom()
-  }
+  })
+
+  window.canonic.ai.onDone(() => {
+    const response = streamBuffer.value
+    messages.value.push({ id: uuidv4(), role: 'assistant', content: response })
+    // Rough token estimate: 4 chars ≈ 1 token
+    sessionStats.value.approxTokens += Math.ceil((content.length + response.length) / 4)
+    sessionStats.value.messages++
+    streamBuffer.value = ''
+    streaming.value = false
+    window.canonic.ai.removeListeners()
+    scrollToBottom()
+  })
+
+  window.canonic.ai.onError((msg) => {
+    messages.value.push({ id: uuidv4(), role: 'assistant', content: `Error: ${msg}` })
+    streaming.value = false
+    window.canonic.ai.removeListeners()
+    scrollToBottom()
+  })
+
+  const contextMessages = messages.value.slice(-10).map(m => ({
+    role: m.role,
+    content: m.content
+  }))
+
+  const docContext = store.currentContent
+    ? `\n\n<document>\n${store.currentContent.slice(0, 4000)}\n</document>`
+    : ''
+
+  window.canonic.ai.chat({
+    messages: contextMessages,
+    system: SYSTEM_PROMPT + docContext,
+    model: getModel(),
+    apiKey
+  })
 }
 
 async function scrollToBottom() {
@@ -183,6 +169,10 @@ async function scrollToBottom() {
     messagesEl.value.scrollTop = messagesEl.value.scrollHeight
   }
 }
+
+onUnmounted(() => {
+  window.canonic.ai.removeListeners()
+})
 </script>
 
 <style scoped>
@@ -211,7 +201,8 @@ async function scrollToBottom() {
 }
 
 .ai-avatar {
-  font-size: 1.5rem;
+  display: flex;
+  justify-content: center;
   margin-bottom: 12px;
   color: var(--accent);
 }
@@ -243,10 +234,7 @@ async function scrollToBottom() {
 
 .chip:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-.message {
-  max-width: 100%;
-  word-break: break-word;
-}
+.message { max-width: 100%; word-break: break-word; }
 
 .message.user .message-content {
   background: var(--accent);
@@ -274,8 +262,33 @@ async function scrollToBottom() {
   color: var(--accent);
 }
 
-@keyframes blink {
-  50% { opacity: 0; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.usage-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--bg-base);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.usage-stat {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-sep {
+  font-size: 0.6875rem;
+  color: var(--border);
+}
+
+.usage-warn {
+  font-size: 0.6875rem;
+  color: #f59e0b;
+  margin-left: 2px;
 }
 
 .chat-input-area {

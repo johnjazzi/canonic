@@ -77,5 +77,18 @@ contextBridge.exposeInMainWorld('canonic', {
     install: () => ipcRenderer.invoke('update:install'),
     onAvailable: (cb) => ipcRenderer.on('update:available', (_, info) => cb(info)),
     onDownloaded: (cb) => ipcRenderer.on('update:downloaded', (_, info) => cb(info))
+  },
+
+  // AI (proxied through main process to avoid CORS)
+  ai: {
+    chat: (params) => ipcRenderer.invoke('ai:chat', params),
+    onChunk: (cb) => ipcRenderer.on('ai:chunk', (_, text) => cb(text)),
+    onDone: (cb) => ipcRenderer.on('ai:done', () => cb()),
+    onError: (cb) => ipcRenderer.on('ai:error', (_, msg) => cb(msg)),
+    removeListeners: () => {
+      ipcRenderer.removeAllListeners('ai:chunk')
+      ipcRenderer.removeAllListeners('ai:done')
+      ipcRenderer.removeAllListeners('ai:error')
+    }
   }
 })

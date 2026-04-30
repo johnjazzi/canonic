@@ -2,7 +2,8 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
-const CONFIG_PATH = path.join(os.homedir(), '.canonic', 'config.json')
+const CANONIC_DIR = process.env.CANONIC_CONFIG_DIR || path.join(os.homedir(), '.canonic')
+const CONFIG_PATH = path.join(CANONIC_DIR, 'config.json')
 
 const DEFAULTS = {
   displayName: os.hostname().replace(/\.local$/, ''),

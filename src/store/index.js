@@ -20,6 +20,11 @@ export const useAppStore = defineStore('app', () => {
   const sidebarTab = ref('files') // 'files' | 'search' | 'peers'
   const rightPanelTab = ref('comments') // 'comments' | 'ai' | 'history'
 
+  // Demo mode — config loaded at runtime from public/demo/config.json
+  const isDemoMode = ref(false)
+  const demoPeers = ref([])
+  const _demoComments = ref({}) // keyed by file path
+
   const api = window.canonic
 
   async function loadConfig() {
@@ -158,7 +163,22 @@ export const useAppStore = defineStore('app', () => {
   async function loadComments() {
     if (!currentFile.value) return
     const docId = currentFile.value.replace(/\//g, '_')
-    comments.value = await api.comments.get(docId) || []
+    const saved = await api.comments.get(docId) || []
+    // Merge in demo comments for this file if demo mode is on
+    if (isDemoMode.value) {
+      const demoForFile = _demoComments.value[currentFile.value] || []
+      // Stamp timestamps dynamically so they look recent
+      const now = Date.now()
+      const stamped = demoForFile.map((c, i) => ({
+        ...c,
+        createdAt: c.createdAt || new Date(now - (i + 1) * 3600000 * 2).toISOString()
+      }))
+      const savedIds = new Set(saved.map(c => c.id))
+      const newDemo = stamped.filter(c => !savedIds.has(c.id))
+      comments.value = [...saved, ...newDemo]
+    } else {
+      comments.value = saved
+    }
   }
 
   async function addComment(comment) {
@@ -180,7 +200,28 @@ export const useAppStore = defineStore('app', () => {
   async function persistComments() {
     if (!currentFile.value) return
     const docId = currentFile.value.replace(/\//g, '_')
-    await api.comments.save(docId, comments.value)
+    await api.comments.save(docId, JSON.parse(JSON.stringify(comments.value)))
+  }
+
+  async function enableDemoMode() {
+    // Load config from public/demo/config.json — not bundled, editable without rebuild
+    const cfg = await fetch('/demo/config.json').then(r => r.json())
+    const defaultPath = await api.workspace.getDefault()
+    const parent = defaultPath.replace(/\/[^/]+$/, '')
+    const demoPath = `${parent}/${cfg.workspaceName}`
+
+    _demoComments.value = cfg.comments || {}
+    demoPeers.value = cfg.peers || []
+    isDemoMode.value = true
+
+    await openWorkspace(demoPath, cfg.template || 'pm-framework')
+  }
+
+  function disableDemoMode() {
+    isDemoMode.value = false
+    demoPeers.value = []
+    _demoComments.value = {}
+    comments.value = comments.value.filter(c => !c.isDemo)
   }
 
   async function startShare(options) {
@@ -207,10 +248,12 @@ export const useAppStore = defineStore('app', () => {
     files, currentFile, currentContent, branches, currentBranch,
     commitLog, comments, isDirty, isLoading, shareInfo, searchResults, config,
     sidebarTab, rightPanelTab,
+    isDemoMode, demoPeers,
     loadConfig, saveConfig,
     openWorkspace, refreshFiles, openFile, saveFile, createFile, renameFile,
     commitFile, refreshBranches, createBranch, checkoutBranch, mergeBranch,
     loadCommitLog, loadComments, addComment, resolveComment, deleteComment,
-    startShare, stopShare, searchDocs
+    startShare, stopShare, searchDocs,
+    enableDemoMode, disableDemoMode
   }
 })
