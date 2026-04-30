@@ -5,8 +5,20 @@
       <div class="topbar-actions">
         <span v-if="store.isDirty" class="unsaved-label">Unsaved</span>
         <button class="action-btn" @click="save" :disabled="!store.isDirty">Save</button>
+        <div class="topbar-divider" />
+        <button class="action-btn icon-label" @click="showVersionModal = true" title="Save a named version">
+          <Tag :size="13" />
+          Version
+        </button>
+        <button class="action-btn icon-label" @click="showForkModal = true" title="Fork to new branch">
+          <GitFork :size="13" />
+          Fork
+        </button>
       </div>
     </div>
+
+    <ForkDocModal v-if="showForkModal" @close="showForkModal = false" />
+    <SaveVersionModal v-if="showVersionModal" @close="showVersionModal = false" />
 
     <div class="editor-scroll">
       <div class="editor-content" ref="editorContentEl" @mouseup="onMouseUp">
@@ -68,8 +80,10 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { MilkdownProvider } from '@milkdown/vue'
 import { useAppStore } from '../../store'
 import { v4 as uuidv4 } from 'uuid'
-import { MessageSquarePlus } from 'lucide-vue-next'
+import { MessageSquarePlus, Tag, GitFork } from 'lucide-vue-next'
 import MilkdownEditor from './MilkdownEditor.vue'
+import ForkDocModal from '../modals/ForkDocModal.vue'
+import SaveVersionModal from '../modals/SaveVersionModal.vue'
 
 const store = useAppStore()
 const editorContentEl = ref(null)
@@ -78,6 +92,8 @@ const localContent = ref('')
 
 const selectionPopover = ref({ visible: false, x: 0, y: 0, text: '' })
 const commentInput = ref({ visible: false, text: '' })
+const showForkModal = ref(false)
+const showVersionModal = ref(false)
 
 const docTitle = computed(() => {
   if (!store.currentFile) return ''
@@ -222,6 +238,19 @@ onMounted(() => {
 
 .action-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.icon-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+}
 
 .editor-scroll {
   flex: 1;

@@ -46,6 +46,7 @@
   "build": {
     "appId": "ai.canonic.app",
     "productName": "Canonic",
+    "icon": "public/canonical-logo.svg",
     "directories": {
       "output": "dist-electron"
     },

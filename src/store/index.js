@@ -20,6 +20,9 @@ export const useAppStore = defineStore('app', () => {
   const sidebarTab = ref('files') // 'files' | 'search' | 'peers'
   const rightPanelTab = ref('comments') // 'comments' | 'ai' | 'history'
 
+  // Per-doc named versions (stored in workspace/.canonic/versions.json)
+  const docVersions = ref([])
+
   // Demo mode — config loaded at runtime from public/demo/config.json
   const isDemoMode = ref(false)
   const demoPeers = ref([])
@@ -87,6 +90,7 @@ export const useAppStore = defineStore('app', () => {
     isDirty.value = false
     await loadComments()
     await loadCommitLog()
+    await loadDocVersions()
     // Index for search
     if (content) {
       api.search.index(workspacePath.value, filePath, content)
@@ -203,6 +207,40 @@ export const useAppStore = defineStore('app', () => {
     await api.comments.save(docId, JSON.parse(JSON.stringify(comments.value)))
   }
 
+  async function loadDocVersions() {
+    if (!workspacePath.value || !currentFile.value) { docVersions.value = []; return }
+    docVersions.value = await api.versions.list(workspacePath.value, currentFile.value)
+  }
+
+  async function saveDocVersion(name, message) {
+    if (!workspacePath.value || !currentFile.value) return
+    if (!commitLog.value.length) throw new Error('No commits yet — save a checkpoint first.')
+    const oid = commitLog.value[0].oid
+    docVersions.value = await api.versions.save(workspacePath.value, currentFile.value, name, oid, message)
+    return docVersions.value
+  }
+
+  async function deleteDocVersion(versionName) {
+    if (!workspacePath.value || !currentFile.value) return
+    await api.versions.delete(workspacePath.value, currentFile.value, versionName)
+    docVersions.value = docVersions.value.filter(v => v.name !== versionName)
+  }
+
+  async function restoreDocVersion(oid) {
+    if (!workspacePath.value || !currentFile.value) return
+    const content = await api.git.readCommit(workspacePath.value, currentFile.value, oid)
+    if (content !== null && content !== undefined) {
+      currentContent.value = content
+      isDirty.value = true
+    }
+  }
+
+  async function forkDocument(branchName) {
+    const result = await createBranch(branchName)
+    if (result?.success) await checkoutBranch(branchName)
+    return result
+  }
+
   async function enableDemoMode() {
     // Load config from public/demo/config.json — not bundled, editable without rebuild
     const cfg = await fetch('/demo/config.json').then(r => r.json())
@@ -248,11 +286,12 @@ export const useAppStore = defineStore('app', () => {
     files, currentFile, currentContent, branches, currentBranch,
     commitLog, comments, isDirty, isLoading, shareInfo, searchResults, config,
     sidebarTab, rightPanelTab,
-    isDemoMode, demoPeers,
+    isDemoMode, demoPeers, docVersions,
     loadConfig, saveConfig,
     openWorkspace, refreshFiles, openFile, saveFile, createFile, renameFile,
     commitFile, refreshBranches, createBranch, checkoutBranch, mergeBranch,
     loadCommitLog, loadComments, addComment, resolveComment, deleteComment,
+    loadDocVersions, saveDocVersion, deleteDocVersion, restoreDocVersion, forkDocument,
     startShare, stopShare, searchDocs,
     enableDemoMode, disableDemoMode
   }

@@ -3,14 +3,16 @@
 ---
 
 ## Bugs
-
+- [ ] **a bunch of stuff doesnt work.**
 - [x] **Comment highlights not rendered in editor** — comments are stored and shown in CommentsPanel but the `anchor.quotedText` is never highlighted in the document. Need to apply ProseMirror decorations after `store.comments` loads: scan the doc for each `quotedText`, create a `Decoration.inline` highlight span, and update decorations when comments change or the file switches. Clicking a highlight should scroll the panel to the matching comment. *(Editor.vue + MilkdownEditor.vue — ProseMirror DecorationSet)*
 
 ---
 
 ## Features
-- [ ] **add logo to electron app**  
-- [ ] **[tech]** reffactor the /components so its not all flat. Put them in folders.
+
+- [ ] **create branches or versions per doc** so we can fork or keep a copy of a doc at a certain point in time.
+- [ ] **add a terminal** in the ui that lets you run cli commands for the workspace.
+- [ ] **[AI AGENT] kick off claude code** be able start/continue claude code session with the changes you made to the doucment. i.e. hey I changed this requirements can you update the app to reflect it? 
 - [ ] **show commits** we want to be able to make checkpoint commits per file. maybe its already doing that idk. need to definitely show that there is uncommited changes. 
 - [ ] **Collapsible sidebar** — toggle button collapses left sidebar to icon-only strip (~40px); persist state in localStorage. *(MainLayout + FileTree, UI only)*
 - [ ] **Create directories** — "New folder" option in FileTree "+" menu; writes `.gitkeep`; rename works on directory nodes. *(FileTree + TreeNode + `files:mkdir` IPC)*
@@ -43,3 +45,4 @@
 - [x] Search with workspace isolation
 - [x] Demo mode with config-driven peer data (`public/demo/config.json`)
 - [x] Comprehensive test suite (unit + integration, 60 tests)
+- [X] **[tech]** reffactor the /components so its not all flat. Put them in folders.

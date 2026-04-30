@@ -79,6 +79,13 @@ contextBridge.exposeInMainWorld('canonic', {
     onDownloaded: (cb) => ipcRenderer.on('update:downloaded', (_, info) => cb(info))
   },
 
+  // Doc versions (per-file named snapshots pointing to commit OIDs)
+  versions: {
+    list: (workspacePath, filePath) => ipcRenderer.invoke('versions:list', workspacePath, filePath),
+    save: (workspacePath, filePath, name, oid, message) => ipcRenderer.invoke('versions:save', workspacePath, filePath, name, oid, message),
+    delete: (workspacePath, filePath, versionName) => ipcRenderer.invoke('versions:delete', workspacePath, filePath, versionName)
+  },
+
   // AI (proxied through main process to avoid CORS)
   ai: {
     chat: (params) => ipcRenderer.invoke('ai:chat', params),

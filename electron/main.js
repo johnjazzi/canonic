@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const configService = require('./config')
+const versionsService = require('./versions')
 const { autoUpdater } = require('electron-updater')
 
 // Suppress harmless Chrome DevTools autofill protocol errors
@@ -28,6 +29,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    icon: path.join(__dirname, '../public/canonical-logo.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -252,6 +254,20 @@ function setupIpcHandlers() {
       properties: ['openDirectory', 'createDirectory']
     })
     return result.canceled ? null : result.filePaths[0]
+  })
+
+  // --- Doc Versions ---
+  ipcMain.handle('versions:list', async (_, workspacePath, filePath) => {
+    return versionsService.list(workspacePath, filePath)
+  })
+
+  ipcMain.handle('versions:save', async (_, workspacePath, filePath, name, oid, message) => {
+    return versionsService.save(workspacePath, filePath, name, oid, message)
+  })
+
+  ipcMain.handle('versions:delete', async (_, workspacePath, filePath, versionName) => {
+    versionsService.remove(workspacePath, filePath, versionName)
+    return true
   })
 
   // --- Cleanup / Uninstall ---
