@@ -192,9 +192,12 @@ async function browsePath() {
 async function createWorkspace() {
   if (!newName.value.trim() || creating.value) return
   creating.value = true
-  await launch(newPath.value, selectedTemplate.value)
-  creating.value = false
-  showNewWorkspace.value = false
+  try {
+    await launch(newPath.value, selectedTemplate.value)
+    showNewWorkspace.value = false
+  } finally {
+    creating.value = false
+  }
 }
 
 async function launch(path, template) {

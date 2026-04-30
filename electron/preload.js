@@ -62,5 +62,12 @@ contextBridge.exposeInMainWorld('canonic', {
   // Peers
   peers: {
     list: () => ipcRenderer.invoke('peers:list')
+  },
+
+  // Cleanup / Uninstall
+  cleanup: {
+    resetConfig: () => ipcRenderer.invoke('cleanup:reset-config'),
+    deleteWorkspace: (path) => ipcRenderer.invoke('cleanup:delete-workspace', path),
+    getPaths: () => ipcRenderer.invoke('cleanup:get-paths')
   }
 })

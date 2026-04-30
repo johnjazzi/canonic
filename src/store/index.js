@@ -35,20 +35,23 @@ export const useAppStore = defineStore('app', () => {
 
   async function openWorkspace(chosenPath, template = 'blank') {
     isLoading.value = true
-    const result = await api.workspace.init(chosenPath, template)
-    workspacePath.value = result.path
-    workspaceName.value = chosenPath.split('/').pop()
-    // Track recent workspaces
-    const recent = recentWorkspaces.value.filter(w => w.path !== chosenPath)
-    recent.unshift({ path: chosenPath, name: workspaceName.value, openedAt: Date.now() })
-    recentWorkspaces.value = recent.slice(0, 8)
-    localStorage.setItem('canonic:recentWorkspaces', JSON.stringify(recentWorkspaces.value))
-    currentFile.value = null
-    currentContent.value = ''
-    comments.value = []
-    await refreshFiles()
-    await refreshBranches()
-    isLoading.value = false
+    try {
+      const result = await api.workspace.init(chosenPath, template)
+      if (result.error) throw new Error(result.error)
+      workspacePath.value = result.path
+      workspaceName.value = chosenPath.split('/').pop()
+      const recent = recentWorkspaces.value.filter(w => w.path !== chosenPath)
+      recent.unshift({ path: chosenPath, name: workspaceName.value, openedAt: Date.now() })
+      recentWorkspaces.value = recent.slice(0, 8)
+      localStorage.setItem('canonic:recentWorkspaces', JSON.stringify(recentWorkspaces.value))
+      currentFile.value = null
+      currentContent.value = ''
+      comments.value = []
+      await refreshFiles()
+      await refreshBranches()
+    } finally {
+      isLoading.value = false
+    }
   }
 
   async function renameFile(oldPath, newName) {

@@ -4,6 +4,9 @@ const fs = require('fs')
 const os = require('os')
 const configService = require('./config')
 
+// Suppress harmless Chrome DevTools autofill protocol errors
+app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication')
+
 const isDev = process.env.NODE_ENV !== 'production'
 const CANONIC_DIR = path.join(os.homedir(), '.canonic')
 const PEERS_FILE = path.join(CANONIC_DIR, 'peers.json')
@@ -68,7 +71,11 @@ function setupIpcHandlers() {
   })
 
   ipcMain.handle('workspace:init', async (_, workspacePath, template = 'blank') => {
-    return gitService.initWorkspace(workspacePath, template)
+    try {
+      return await gitService.initWorkspace(workspacePath, template)
+    } catch (err) {
+      return { error: err.message, path: workspacePath }
+    }
   })
 
   ipcMain.handle('workspace:get-default', async () => {
@@ -219,5 +226,39 @@ function setupIpcHandlers() {
       properties: ['openDirectory', 'createDirectory']
     })
     return result.canceled ? null : result.filePaths[0]
+  })
+
+  // --- Cleanup / Uninstall ---
+  ipcMain.handle('cleanup:reset-config', async () => {
+    try {
+      if (fs.existsSync(CANONIC_DIR)) {
+        fs.rmSync(CANONIC_DIR, { recursive: true, force: true })
+      }
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('cleanup:delete-workspace', async (_, workspacePath) => {
+    try {
+      if (!workspacePath || !fs.existsSync(workspacePath)) {
+        return { success: false, error: 'Workspace path not found' }
+      }
+      fs.rmSync(workspacePath, { recursive: true, force: true })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('cleanup:get-paths', async () => {
+    const config = configService.read()
+    return {
+      configDir: CANONIC_DIR,
+      configFile: configService.CONFIG_PATH,
+      defaultWorkspace: config?.defaultWorkspacePath || null,
+      currentWorkspace: null
+    }
   })
 }

@@ -10,6 +10,7 @@
         <button :class="['tab', activeTab === 'profile' && 'active']" @click="activeTab = 'profile'">Profile & AI</button>
         <button :class="['tab', activeTab === 'sharing' && 'active']" @click="activeTab = 'sharing'">Sharing</button>
         <button :class="['tab', activeTab === 'workspace' && 'active']" @click="activeTab = 'workspace'">Workspace</button>
+        <button :class="['tab', activeTab === 'danger' && 'active']" @click="activeTab = 'danger'">Reset</button>
       </div>
 
       <!-- Profile & AI tab -->
@@ -85,6 +86,64 @@
         </div>
       </div>
 
+      <!-- Reset / Danger tab -->
+      <div v-if="activeTab === 'danger'" class="tab-content">
+        <p class="danger-intro">
+          These actions are permanent. Use them to clean up your installation or start fresh.
+        </p>
+
+        <div class="danger-card">
+          <div class="danger-card-header">
+            <span class="danger-card-title">Reset configuration</span>
+            <span class="danger-badge">Irreversible</span>
+          </div>
+          <p class="danger-card-desc">
+            Deletes <code>~/.canonic/</code> — your settings, API key, comments, search index,
+            and peer cache. Your workspace documents are <strong>not</strong> deleted.
+            The app will show first-run setup next launch.
+          </p>
+          <div class="danger-paths" v-if="cleanupPaths">
+            <span class="path-chip">{{ cleanupPaths.configDir }}</span>
+          </div>
+          <button class="danger-btn" @click="confirmReset" :disabled="dangerBusy">
+            {{ dangerBusy ? 'Deleting…' : 'Delete config and reset' }}
+          </button>
+        </div>
+
+        <div class="danger-card" v-if="store.workspacePath">
+          <div class="danger-card-header">
+            <span class="danger-card-title">Delete current workspace</span>
+            <span class="danger-badge">Irreversible</span>
+          </div>
+          <p class="danger-card-desc">
+            Permanently deletes the workspace folder and all documents inside it.
+            This cannot be undone.
+          </p>
+          <div class="danger-paths">
+            <span class="path-chip">{{ store.workspacePath }}</span>
+          </div>
+          <button class="danger-btn" @click="confirmDeleteWorkspace" :disabled="dangerBusy">
+            Delete workspace folder
+          </button>
+        </div>
+
+        <div class="danger-card">
+          <div class="danger-card-header">
+            <span class="danger-card-title">Uninstall script</span>
+          </div>
+          <p class="danger-card-desc">
+            Run this in your terminal to remove all Canonic data after uninstalling the app:
+          </p>
+          <div class="code-block">
+            <pre>rm -rf ~/.canonic</pre>
+            <button class="copy-code-btn" @click="copyUninstall">{{ copiedUninstall ? '✓ Copied' : 'Copy' }}</button>
+          </div>
+        </div>
+
+        <p v-if="dangerError" class="danger-error">{{ dangerError }}</p>
+        <p v-if="dangerSuccess" class="danger-success">{{ dangerSuccess }}</p>
+      </div>
+
       <!-- Workspace tab -->
       <div v-if="activeTab === 'workspace'" class="tab-content">
         <div class="field">
@@ -132,6 +191,13 @@ const saving = ref(false)
 const saveSuccess = ref(false)
 const saveError = ref('')
 const errors = ref({})
+const dangerBusy = ref(false)
+const dangerError = ref('')
+const dangerSuccess = ref('')
+const cleanupPaths = ref(null)
+const copiedUninstall = ref(false)
+
+window.canonic.cleanup.getPaths().then(p => { cleanupPaths.value = p })
 
 const form = reactive({
   displayName: '',
@@ -186,6 +252,41 @@ async function save() {
 function switchWorkspace() {
   emit('close')
   router.push('/')
+}
+
+async function confirmReset() {
+  if (!confirm('This will delete ~/.canonic/ and all Canonic settings. Your workspace documents are kept. Continue?')) return
+  dangerBusy.value = true
+  dangerError.value = ''
+  const result = await window.canonic.cleanup.resetConfig()
+  dangerBusy.value = false
+  if (result.success) {
+    dangerSuccess.value = 'Config deleted. Restart the app to run first-time setup.'
+  } else {
+    dangerError.value = result.error
+  }
+}
+
+async function confirmDeleteWorkspace() {
+  if (!store.workspacePath) return
+  if (!confirm(`Permanently delete "${store.workspacePath}" and all files inside? This cannot be undone.`)) return
+  dangerBusy.value = true
+  dangerError.value = ''
+  const result = await window.canonic.cleanup.deleteWorkspace(store.workspacePath)
+  dangerBusy.value = false
+  if (result.success) {
+    dangerSuccess.value = 'Workspace deleted.'
+    emit('close')
+    router.push('/')
+  } else {
+    dangerError.value = result.error
+  }
+}
+
+async function copyUninstall() {
+  await navigator.clipboard.writeText('rm -rf ~/.canonic')
+  copiedUninstall.value = true
+  setTimeout(() => { copiedUninstall.value = false }, 2000)
 }
 </script>
 
@@ -433,4 +534,123 @@ function switchWorkspace() {
 
 .btn-primary:hover:not(:disabled) { opacity: 0.85; }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Danger / Reset tab */
+.danger-intro {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.danger-card {
+  border: 1px solid rgba(231, 76, 60, 0.25);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: rgba(231, 76, 60, 0.04);
+}
+
+.danger-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.danger-card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.danger-badge {
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--error);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.danger-card-desc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+
+.danger-card-desc strong { color: var(--text-secondary); }
+.danger-card-desc code {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.775rem;
+}
+
+.danger-paths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.path-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  background: var(--bg-base);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.danger-btn {
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  background: rgba(231, 76, 60, 0.08);
+  color: var(--error);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.danger-btn:hover:not(:disabled) { background: rgba(231, 76, 60, 0.18); }
+.danger-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.code-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 12px;
+}
+
+.code-block pre {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.775rem;
+  color: var(--text-secondary);
+  white-space: pre;
+}
+
+.copy-code-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.copy-code-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.danger-error { font-size: 0.8rem; color: var(--error); margin-top: 10px; }
+.danger-success { font-size: 0.8rem; color: var(--success); margin-top: 10px; }
 </style>

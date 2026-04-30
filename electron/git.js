@@ -36,23 +36,32 @@ async function initWorkspace(workspacePath, template = 'blank') {
 
   const filesToCommit = []
 
-  if (template === 'pm-framework') {
-    const pmFiles = getPMFrameworkFiles()
-    for (const [relPath, content] of Object.entries(pmFiles)) {
-      const fullPath = path.join(workspacePath, relPath)
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true })
-      fs.writeFileSync(fullPath, content, 'utf-8')
-      filesToCommit.push(relPath)
+  // Write template files
+  try {
+    if (template === 'pm-framework') {
+      const pmFiles = getPMFrameworkFiles()
+      for (const [relPath, content] of Object.entries(pmFiles)) {
+        const fullPath = path.join(workspacePath, relPath)
+        fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+        fs.writeFileSync(fullPath, content, 'utf-8')
+        filesToCommit.push(relPath)
+      }
     }
+
+    const readmePath = 'README.md'
+    fs.writeFileSync(path.join(workspacePath, readmePath), getReadmeContent(), 'utf-8')
+    filesToCommit.push(readmePath)
+  } catch (err) {
+    throw new Error(`Failed to create template files: ${err.message}`)
   }
 
-  // Always create README
-  const readmePath = 'README.md'
-  fs.writeFileSync(path.join(workspacePath, readmePath), getReadmeContent(), 'utf-8')
-  filesToCommit.push(readmePath)
-
-  for (const filepath of filesToCommit) {
-    await git.add({ fs, dir: workspacePath, filepath })
+  // Stage all files
+  try {
+    for (const filepath of filesToCommit) {
+      await git.add({ fs, dir: workspacePath, filepath })
+    }
+  } catch (err) {
+    throw new Error(`Failed to stage files: ${err.message}`)
   }
 
   const message = template === 'pm-framework'
