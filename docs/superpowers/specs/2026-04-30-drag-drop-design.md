@@ -59,6 +59,19 @@ Both refs reset to `null`/`null` on drop or `dragend`.
 
 Move failures (e.g. name collision) surface via the existing store error flow. No special DnD-specific error UI needed.
 
+## Acceptance Criteria
+
+1. A file dragged onto a folder moves into that folder
+2. A folder dragged onto another folder becomes a child of the target
+3. A file or folder dragged to the root drop zone (empty tree-body area) moves to workspace root
+4. Dropping onto the item's current parent is a no-op
+5. Dropping a folder onto itself or any of its own descendants is prevented
+6. The dragged node shows reduced opacity while dragging
+7. Hovering over a valid folder target highlights that folder
+8. Hovering over the root drop zone highlights the tree-body
+9. After a drop the tree refreshes and shows the item in its new location
+10. If a move fails the tree stays unchanged
+
 ## Out of Scope
 
 - Reordering within a folder (alphabetical sort stays)

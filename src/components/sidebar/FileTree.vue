@@ -23,7 +23,12 @@
         @blur="confirmNewFolder"
       />
     </div>
-    <div class="tree-body">
+    <div
+      :class="['tree-body', dd.dragTarget.value === '' && 'drag-over-root']"
+      @dragover.prevent="onRootDragOver"
+      @dragleave="onRootDragLeave"
+      @drop.prevent="onRootDrop"
+    >
       <TreeNode
         v-for="item in store.files"
         :key="item.path"
@@ -41,11 +46,13 @@
 <script setup>
 import { ref, nextTick, inject, watch } from 'vue'
 import { useAppStore } from '../../store'
+import { useDragDrop } from '../../composables/useDragDrop.js'
 import TreeNode from './TreeNode.vue'
 import TrashBin from './TrashBin.vue'
 import { FilePlus, FolderPlus } from 'lucide-vue-next'
 
 const store = useAppStore()
+const dd = useDragDrop()
 const showNewDoc = inject('showNewDoc')
 
 const creatingFolder = ref(false)
@@ -59,6 +66,32 @@ watch(creatingFolder, async (val) => {
     folderInput.value?.focus()
   }
 })
+
+function onRootDragOver(e) {
+  if (!dd.draggingItem.value) return
+  if (e.target !== e.currentTarget && e.currentTarget.contains(e.target)) return
+  if (!dd.canDrop(dd.draggingItem.value.path, '')) return
+  dd.setTarget('')
+}
+
+function onRootDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) dd.clearTarget()
+}
+
+async function onRootDrop() {
+  const item = dd.draggingItem.value
+  dd.endDrag()
+  if (!item) return
+  if (!dd.canDrop(item.path, '')) return
+  const newPath = dd.getNewPath(item.path, '')
+  try {
+    await window.canonic.files.move(store.workspacePath, item.path, newPath)
+    if (store.currentFile === item.path) await store.openFile(newPath)
+    await store.refreshFiles()
+  } catch (err) {
+    console.error('Move failed:', err)
+  }
+}
 
 async function confirmNewFolder() {
   const name = folderName.value.trim()
@@ -133,6 +166,12 @@ async function confirmNewFolder() {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
+}
+
+.drag-over-root {
+  outline: 1px dashed var(--accent-muted);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 
 .empty-hint {

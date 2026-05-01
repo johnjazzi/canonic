@@ -1,11 +1,22 @@
 <template>
   <div>
     <div
-      :class="['tree-node', item.type === 'file' && store.currentFile === item.path && 'active']"
+      :class="[
+        'tree-node',
+        item.type === 'file' && store.currentFile === item.path && 'active',
+        dd.draggingItem.value?.path === item.path && 'dragging',
+        item.type === 'directory' && dd.dragTarget.value === item.path && 'drag-over',
+      ]"
       :style="{ paddingLeft: `${12 + depth * 16}px` }"
+      :draggable="true"
       @click="handleClick"
       @mouseenter="hovered = true"
       @mouseleave="hovered = false"
+      @dragstart.stop="onDragStart"
+      @dragend.stop="dd.endDrag()"
+      @dragover.prevent.stop="onDragOver"
+      @dragleave.stop="onDragLeave"
+      @drop.stop="onDrop"
     >
       <ChevronRight v-if="item.type === 'directory'" :size="12" class="chevron" :class="open && 'open'" />
       <Folder v-if="item.type === 'directory'" :size="12" class="dir-icon" />
@@ -102,11 +113,13 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import { useAppStore } from '../../store'
+import { useDragDrop } from '../../composables/useDragDrop.js'
 import { ChevronRight, FileText, Folder, FilePlus, FolderPlus, Pencil, Trash2, ArrowRightFromLine } from 'lucide-vue-next'
 
 const props = defineProps({ item: Object, depth: Number })
 
 const store = useAppStore()
+const dd = useDragDrop()
 const open = ref(true)
 const hovered = ref(false)
 const renaming = ref(false)
@@ -141,6 +154,44 @@ const availableDirs = computed(() => {
   walk(store.files)
   return dirs
 })
+
+function onDragStart(e) {
+  dd.startDrag({ path: props.item.path, type: props.item.type })
+  e.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragOver() {
+  if (!dd.draggingItem.value) return
+  if (props.item.type !== 'directory') return
+  if (!dd.canDrop(dd.draggingItem.value.path, props.item.path)) return
+  dd.setTarget(props.item.path)
+}
+
+function onDragLeave(e) {
+  if (dd.dragTarget.value === props.item.path && !e.currentTarget.contains(e.relatedTarget)) {
+    dd.clearTarget()
+  }
+}
+
+async function onDrop() {
+  const item = dd.draggingItem.value
+  dd.endDrag()
+  if (!item) return
+  if (props.item.type !== 'directory') return
+  if (!dd.canDrop(item.path, props.item.path)) return
+  await executeMove(item, props.item.path)
+}
+
+async function executeMove(item, targetDir) {
+  const newPath = dd.getNewPath(item.path, targetDir)
+  try {
+    await window.canonic.files.move(store.workspacePath, item.path, newPath)
+    if (store.currentFile === item.path) await store.openFile(newPath)
+    await store.refreshFiles()
+  } catch (err) {
+    console.error('Move failed:', err)
+  }
+}
 
 function handleClick() {
   if (renaming.value) return
@@ -251,6 +302,8 @@ async function confirmNewFolder() {
 
 .tree-node:hover { background: var(--bg-hover); color: var(--text-primary); }
 .tree-node.active { background: var(--bg-active); color: var(--text-primary); }
+.tree-node.dragging { opacity: 0.4; }
+.tree-node.drag-over { background: var(--accent-muted); color: var(--text-primary); outline: 1px solid var(--accent); outline-offset: -1px; }
 
 .chevron { flex-shrink: 0; transition: transform 0.15s; }
 .chevron.open { transform: rotate(90deg); }
