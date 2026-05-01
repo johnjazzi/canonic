@@ -52,7 +52,7 @@
     </div>
 
     <div class="editor-scroll">
-      <div class="editor-content" ref="editorContentEl" @mouseup="onMouseUp">
+      <div class="editor-content" ref="editorContentEl" @mouseup="onMouseUp" :style="{ '--editor-font-size': editorFontSize + 'px' }">
         <MilkdownProvider :key="store.currentFile">
           <MilkdownEditor
             :content="store.currentContent"
@@ -246,11 +246,34 @@ async function doMerge() {
   }
 }
 
+const EDITOR_FONT_KEY = 'canonic:editorFontSize'
+const DEFAULT_FONT_SIZE = 15
+const editorFontSize = ref(parseInt(localStorage.getItem(EDITOR_FONT_KEY) || DEFAULT_FONT_SIZE))
+
+function editorHasFocus() {
+  return editorContentEl.value?.contains(document.activeElement)
+}
+
 onMounted(() => {
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault()
       if (store.isDirty) save()
+    }
+    if ((e.metaKey || e.ctrlKey) && editorHasFocus()) {
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault()
+        editorFontSize.value = Math.min(editorFontSize.value + 1, 28)
+        localStorage.setItem(EDITOR_FONT_KEY, editorFontSize.value)
+      } else if (e.key === '-') {
+        e.preventDefault()
+        editorFontSize.value = Math.max(editorFontSize.value - 1, 11)
+        localStorage.setItem(EDITOR_FONT_KEY, editorFontSize.value)
+      } else if (e.key === '0') {
+        e.preventDefault()
+        editorFontSize.value = DEFAULT_FONT_SIZE
+        localStorage.setItem(EDITOR_FONT_KEY, editorFontSize.value)
+      }
     }
   })
 })
@@ -584,7 +607,7 @@ onMounted(() => {
 .milkdown .ProseMirror {
   outline: none;
   font-family: inherit;
-  font-size: 0.9375rem;
+  font-size: var(--editor-font-size, 15px);
   line-height: 1.8;
   color: var(--text-primary);
   caret-color: var(--accent);
