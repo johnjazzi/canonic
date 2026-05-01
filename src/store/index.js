@@ -1,487 +1,711 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
 
-export const useAppStore = defineStore('app', () => {
-  const workspacePath = ref(null)
-  const workspaceName = ref(null)
-  const recentWorkspaces = ref(JSON.parse(localStorage.getItem('canonic:recentWorkspaces') || '[]'))
-  const files = ref([])
-  const currentFile = ref(null)
-  const currentContent = ref('')
-  const branches = ref([])
-  const currentBranch = ref('main')
-  const commitLog = ref([])
-  const comments = ref([])
-  const isDirty = ref(false)
-  const fileIsUncommitted = ref(false)
-  const isLoading = ref(false)
-  const shareInfo = ref(null)
-  const searchResults = ref([])
-  const config = ref(null)
-  const sidebarTab = ref('files')
-  const rightPanelTab = ref('comments')
-  const docVersions = ref([])
-  const docBranchMap = ref({}) // { 'path/to/file.md': { activeBranch: 'branch', branches: ['branch'] } }
+export const useAppStore = defineStore("app", () => {
+  const workspacePath = ref(null);
+  const workspaceName = ref(null);
+  const recentWorkspaces = ref(
+    JSON.parse(localStorage.getItem("canonic:recentWorkspaces") || "[]"),
+  );
+  const files = ref([]);
+  const currentFile = ref(null);
+  const currentContent = ref("");
+  const branches = ref([]);
+  const currentBranch = ref("main");
+  const commitLog = ref([]);
+  const comments = ref([]);
+  const isDirty = ref(false);
+  const fileIsUncommitted = ref(false);
+  const isLoading = ref(false);
+  const shareInfo = ref(null);
+  const searchResults = ref([]);
+  const config = ref(null);
+  const sidebarTab = ref("files");
+  const rightPanelTab = ref("comments");
+  const docVersions = ref([]);
+  const docBranchMap = ref({}); // { 'path/to/file.md': { activeBranch: 'branch', branches: ['branch'] } }
 
-  const trashItems = ref([])
+  const trashItems = ref([]);
 
-  const isDemoMode = ref(false)
-  const demoPeers = ref([])
-  const _demoComments = ref({})
+  const isDemoMode = ref(false);
+  const demoPeers = ref([]);
+  const _demoComments = ref({});
 
-  const api = window.canonic
+  const api = window.canonic;
 
   // Active branch for the current document (defaults to 'main' if not in map)
   const currentDocBranch = computed(() => {
-    if (!currentFile.value) return currentBranch.value
-    return docBranchMap.value[currentFile.value]?.activeBranch || 'main'
-  })
+    if (!currentFile.value) return currentBranch.value;
+    return docBranchMap.value[currentFile.value]?.activeBranch || "main";
+  });
 
   function getDocBranches(filePath) {
-    return docBranchMap.value[filePath]?.branches || []
+    return docBranchMap.value[filePath]?.branches || [];
   }
 
   async function loadDocBranchMap() {
-    if (!workspacePath.value) { docBranchMap.value = {}; return }
-    docBranchMap.value = await api.docBranches.get(workspacePath.value)
+    if (!workspacePath.value) {
+      docBranchMap.value = {};
+      return;
+    }
+    docBranchMap.value = await api.docBranches.get(workspacePath.value);
   }
 
   async function saveDocBranchMap() {
-    if (!workspacePath.value) return
-    await api.docBranches.set(workspacePath.value, docBranchMap.value)
+    if (!workspacePath.value) return;
+    await api.docBranches.set(workspacePath.value, docBranchMap.value);
   }
 
   async function loadConfig() {
-    config.value = await api.config.read()
-    return config.value
+    if (import.meta.env.DEV) console.log("[Store] Loading config...");
+    config.value = await api.config.read();
+    if (import.meta.env.DEV) {
+      if (config.value) {
+        console.log("[Store] Config loaded:", {
+          ...config.value,
+          apiKey: config.value.apiKey ? "***" : "(none)",
+        });
+      } else {
+        console.log("[Store] No config found (first-run)");
+      }
+    }
+    return config.value;
   }
 
   async function saveConfig(newConfig) {
-    const result = await api.config.write(newConfig)
-    if (result.success) config.value = result.config
-    return result
+    if (import.meta.env.DEV)
+      console.log("[Store] Saving config:", {
+        ...newConfig,
+        apiKey: newConfig.apiKey ? "***" : "(none)",
+      });
+    const result = await api.config.write(newConfig);
+    if (result.success) {
+      config.value = result.config;
+      if (import.meta.env.DEV) console.log("[Store] Config saved successfully");
+    } else {
+      if (import.meta.env.DEV)
+        console.warn("[Store] Config save failed:", result.errors);
+    }
+    return result;
   }
 
-  async function openWorkspace(chosenPath, template = 'blank') {
-    isLoading.value = true
+  async function openWorkspace(chosenPath, template = "blank") {
+    isLoading.value = true;
     try {
-      const result = await api.workspace.init(chosenPath, template)
-      if (result.error) throw new Error(result.error)
-      workspacePath.value = result.path
-      workspaceName.value = chosenPath.split('/').pop()
-      const recent = recentWorkspaces.value.filter(w => w.path !== chosenPath)
-      recent.unshift({ path: chosenPath, name: workspaceName.value, openedAt: Date.now() })
-      recentWorkspaces.value = recent.slice(0, 8)
-      localStorage.setItem('canonic:recentWorkspaces', JSON.stringify(recentWorkspaces.value))
-      currentFile.value = null
-      currentContent.value = ''
-      comments.value = []
-      await refreshFiles()
-      await refreshBranches()
-      await loadDocBranchMap()
-      await loadTrash()
+      const result = await api.workspace.init(chosenPath, template);
+      if (result.error) throw new Error(result.error);
+      workspacePath.value = result.path;
+      workspaceName.value = chosenPath.split("/").pop();
+      const recent = recentWorkspaces.value.filter(
+        (w) => w.path !== chosenPath,
+      );
+      recent.unshift({
+        path: chosenPath,
+        name: workspaceName.value,
+        openedAt: Date.now(),
+      });
+      recentWorkspaces.value = recent.slice(0, 8);
+      localStorage.setItem(
+        "canonic:recentWorkspaces",
+        JSON.stringify(recentWorkspaces.value),
+      );
+      currentFile.value = null;
+      currentContent.value = "";
+      comments.value = [];
+      await refreshFiles();
+      await refreshBranches();
+      await loadDocBranchMap();
+      await loadTrash();
+      await logEvent("workspace:open", { template });
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
   }
 
   async function renameFile(oldPath, newName) {
-    if (!workspacePath.value) return
-    const dir = oldPath.includes('/') ? oldPath.split('/').slice(0, -1).join('/') : ''
-    const cleanName = newName.endsWith('.md') ? newName : `${newName}.md`
-    const newPath = dir ? `${dir}/${cleanName}` : cleanName
-    await api.files.move(workspacePath.value, oldPath, newPath)
+    if (!workspacePath.value) return;
+    const dir = oldPath.includes("/")
+      ? oldPath.split("/").slice(0, -1).join("/")
+      : "";
+    const cleanName = newName.endsWith(".md") ? newName : `${newName}.md`;
+    const newPath = dir ? `${dir}/${cleanName}` : cleanName;
+    await api.files.move(workspacePath.value, oldPath, newPath);
     if (currentFile.value === oldPath) {
-      currentFile.value = newPath
+      currentFile.value = newPath;
       if (docBranchMap.value[oldPath]) {
-        docBranchMap.value[newPath] = docBranchMap.value[oldPath]
-        delete docBranchMap.value[oldPath]
-        await saveDocBranchMap()
+        docBranchMap.value[newPath] = docBranchMap.value[oldPath];
+        delete docBranchMap.value[oldPath];
+        await saveDocBranchMap();
       }
     }
-    await refreshFiles()
-    return newPath
+    await refreshFiles();
+    return newPath;
   }
 
   async function deleteFile(filePath) {
-    if (!workspacePath.value) return
-    await api.files.trash.delete(workspacePath.value, filePath, false)
+    if (!workspacePath.value) return;
+    await api.files.trash.delete(workspacePath.value, filePath, false);
     if (currentFile.value === filePath) {
-      currentFile.value = null
-      currentContent.value = ''
-      isDirty.value = false
-      fileIsUncommitted.value = false
-      commitLog.value = []
-      docVersions.value = []
-      comments.value = []
+      currentFile.value = null;
+      currentContent.value = "";
+      isDirty.value = false;
+      fileIsUncommitted.value = false;
+      commitLog.value = [];
+      docVersions.value = [];
+      comments.value = [];
     }
-    await refreshFiles()
-    await loadTrash()
+    await refreshFiles();
+    await loadTrash();
   }
 
   async function createDirectory(dirPath) {
-    if (!workspacePath.value) return
-    await api.files.mkdir(workspacePath.value, dirPath)
-    await refreshFiles()
+    if (!workspacePath.value) return;
+    await api.files.mkdir(workspacePath.value, dirPath);
+    await refreshFiles();
   }
 
   async function deleteDirectory(dirPath) {
-    if (!workspacePath.value) return
-    const prefix = dirPath + '/'
+    if (!workspacePath.value) return;
+    const prefix = dirPath + "/";
     if (currentFile.value?.startsWith(prefix)) {
-      currentFile.value = null
-      currentContent.value = ''
-      isDirty.value = false
-      commitLog.value = []
-      docVersions.value = []
-      comments.value = []
+      currentFile.value = null;
+      currentContent.value = "";
+      isDirty.value = false;
+      commitLog.value = [];
+      docVersions.value = [];
+      comments.value = [];
     }
-    await api.files.trash.delete(workspacePath.value, dirPath, true)
-    await refreshFiles()
-    await loadTrash()
+    await api.files.trash.delete(workspacePath.value, dirPath, true);
+    await refreshFiles();
+    await loadTrash();
   }
 
   async function moveFile(filePath, newDirPath) {
-    if (!workspacePath.value) return
-    const filename = filePath.split('/').pop()
-    const newPath = newDirPath ? `${newDirPath}/${filename}` : filename
-    await api.files.move(workspacePath.value, filePath, newPath)
+    if (!workspacePath.value) return;
+    const filename = filePath.split("/").pop();
+    const newPath = newDirPath ? `${newDirPath}/${filename}` : filename;
+
+    // Find all files that will be moved (to migrate comments)
+    const affectedFiles = [];
+    const walk = (items) => {
+      for (const it of items) {
+        if (it.path === filePath || it.path.startsWith(filePath + "/")) {
+          if (it.type === "file") affectedFiles.push(it.path);
+          if (it.children) walk(it.children);
+        } else if (it.children) {
+          walk(it.children);
+        }
+      }
+    };
+    walk(files.value);
+
+    // Perform move on disk
+    await api.files.move(workspacePath.value, filePath, newPath);
+
+    // Migrate comments for all affected files
+    for (const oldFile of affectedFiles) {
+      const movedFile = oldFile.replace(filePath, newPath);
+      const oldDocId = oldFile.replace(/\//g, "_");
+      const newDocId = movedFile.replace(/\//g, "_");
+      await api.comments.move(oldDocId, newDocId);
+    }
+
+    // Update currentFile if it or its parent was moved
     if (currentFile.value === filePath) {
-      currentFile.value = newPath
-      if (docBranchMap.value[filePath]) {
-        docBranchMap.value[newPath] = docBranchMap.value[filePath]
-        delete docBranchMap.value[filePath]
-        await saveDocBranchMap()
+      currentFile.value = newPath;
+    } else if (currentFile.value?.startsWith(filePath + "/")) {
+      currentFile.value = currentFile.value.replace(filePath, newPath);
+    }
+
+    // Update docBranchMap for the item and its descendants
+    let changed = false;
+    const newDocBranchMap = { ...docBranchMap.value };
+
+    if (newDocBranchMap[filePath]) {
+      newDocBranchMap[newPath] = newDocBranchMap[filePath];
+      delete newDocBranchMap[filePath];
+      changed = true;
+    }
+
+    for (const key of Object.keys(newDocBranchMap)) {
+      if (key.startsWith(filePath + "/")) {
+        const newKey = key.replace(filePath, newPath);
+        newDocBranchMap[newKey] = newDocBranchMap[key];
+        delete newDocBranchMap[key];
+        changed = true;
       }
     }
-    await refreshFiles()
-    return newPath
+
+    if (changed) {
+      docBranchMap.value = newDocBranchMap;
+      await saveDocBranchMap();
+    }
+
+    await refreshFiles();
+    return newPath;
   }
 
   async function loadTrash() {
-    if (!workspacePath.value) { trashItems.value = []; return }
-    trashItems.value = await api.files.trash.list(workspacePath.value) || []
+    if (!workspacePath.value) {
+      trashItems.value = [];
+      return;
+    }
+    trashItems.value = (await api.files.trash.list(workspacePath.value)) || [];
   }
 
   async function restoreFromTrash(id) {
-    if (!workspacePath.value) return
-    await api.files.trash.restore(workspacePath.value, id)
-    await refreshFiles()
-    await loadTrash()
+    if (!workspacePath.value) return;
+    await api.files.trash.restore(workspacePath.value, id);
+    await refreshFiles();
+    await loadTrash();
   }
 
   async function purgeTrashItem(id) {
-    if (!workspacePath.value) return
-    await api.files.trash.purge(workspacePath.value, id)
-    await loadTrash()
+    if (!workspacePath.value) return;
+    await api.files.trash.purge(workspacePath.value, id);
+    await loadTrash();
   }
 
   async function refreshFiles() {
-    if (!workspacePath.value) return
-    files.value = await api.files.list(workspacePath.value)
+    if (!workspacePath.value) return;
+    files.value = await api.files.list(workspacePath.value);
   }
 
   async function openFile(filePath) {
-    if (!workspacePath.value) return
+    if (!workspacePath.value) return;
 
     // Switch to the branch this document is on
-    const docBranch = docBranchMap.value[filePath]?.activeBranch || 'main'
+    const docBranch = docBranchMap.value[filePath]?.activeBranch || "main";
     if (docBranch !== currentBranch.value) {
-      const result = await api.git.checkout(workspacePath.value, docBranch)
-      if (result.success) currentBranch.value = docBranch
+      const result = await api.git.checkout(workspacePath.value, docBranch);
+      if (result.success) currentBranch.value = docBranch;
     }
 
-    const content = await api.files.read(workspacePath.value, filePath)
-    currentFile.value = filePath
-    currentContent.value = content || ''
-    isDirty.value = false
-    await loadComments()
-    await loadCommitLog()
-    await loadDocVersions()
+    const content = await api.files.read(workspacePath.value, filePath);
+    currentFile.value = filePath;
+    currentContent.value = content || "";
+    isDirty.value = false;
+    await loadComments();
+    await loadCommitLog();
+    await loadDocVersions();
     if (content) {
-      api.search.index(workspacePath.value, filePath, content)
+      api.search.index(workspacePath.value, filePath, content);
     }
+    await logEvent("file:open");
   }
 
   async function saveFile(content) {
-    if (!workspacePath.value || !currentFile.value) return
-    await api.files.write(workspacePath.value, currentFile.value, content)
-    currentContent.value = content
-    isDirty.value = false
-    api.search.index(workspacePath.value, currentFile.value, content)
-    await checkFileStatus()
+    if (!workspacePath.value || !currentFile.value) return;
+    await api.files.write(workspacePath.value, currentFile.value, content);
+    currentContent.value = content;
+    isDirty.value = false;
+    api.search.index(workspacePath.value, currentFile.value, content);
+    await checkFileStatus();
   }
 
   async function checkFileStatus() {
-    if (!workspacePath.value || !currentFile.value) { fileIsUncommitted.value = false; return }
-    const result = await api.git.fileStatus(workspacePath.value, currentFile.value)
-    fileIsUncommitted.value = result?.isUncommitted ?? false
+    if (!workspacePath.value || !currentFile.value) {
+      fileIsUncommitted.value = false;
+      return;
+    }
+    const result = await api.git.fileStatus(
+      workspacePath.value,
+      currentFile.value,
+    );
+    fileIsUncommitted.value = result?.isUncommitted ?? false;
   }
 
   async function createFile(name) {
-    if (!workspacePath.value) return
-    const filePath = await api.files.newDoc(workspacePath.value, name)
-    await refreshFiles()
-    await openFile(filePath)
-    return filePath
+    if (!workspacePath.value) return;
+    const filePath = await api.files.newDoc(workspacePath.value, name);
+    await refreshFiles();
+    await openFile(filePath);
+    await logEvent("file:create");
+    return filePath;
   }
 
   async function commitFile(message) {
-    if (!workspacePath.value || !currentFile.value) return
-    const result = await api.git.commit(workspacePath.value, currentFile.value, message)
+    if (!workspacePath.value || !currentFile.value) return;
+    const result = await api.git.commit(
+      workspacePath.value,
+      currentFile.value,
+      message,
+    );
     if (result.success) {
-      fileIsUncommitted.value = false
-      await loadCommitLog().catch(e => console.error('[commitFile] loadCommitLog failed:', e))
+      fileIsUncommitted.value = false;
+      await loadCommitLog().catch((e) =>
+        console.error("[commitFile] loadCommitLog failed:", e),
+      );
     }
-    return result
+    return result;
   }
 
   async function refreshBranches() {
-    if (!workspacePath.value) return
-    const result = await api.git.branches(workspacePath.value)
-    branches.value = result.branches || []
-    currentBranch.value = result.current || 'main'
+    if (!workspacePath.value) return;
+    const result = await api.git.branches(workspacePath.value);
+    branches.value = result.branches || [];
+    currentBranch.value = result.current || "main";
   }
 
   async function createBranch(name) {
-    if (!workspacePath.value) return
-    const result = await api.git.createBranch(workspacePath.value, name)
+    if (!workspacePath.value) return;
+    const result = await api.git.createBranch(workspacePath.value, name);
     if (result.success) {
-      await refreshBranches()
+      await refreshBranches();
     }
-    return result
+    return result;
   }
 
   async function checkoutBranch(name) {
-    if (!workspacePath.value) return
-    const result = await api.git.checkout(workspacePath.value, name)
+    if (!workspacePath.value) return;
+    const result = await api.git.checkout(workspacePath.value, name);
     if (result.success) {
-      currentBranch.value = name
+      currentBranch.value = name;
       // Update the doc branch map for the current document
       if (currentFile.value) {
         if (!docBranchMap.value[currentFile.value]) {
-          if (name !== 'main') {
-            docBranchMap.value[currentFile.value] = { activeBranch: name, branches: [name] }
+          if (name !== "main") {
+            docBranchMap.value[currentFile.value] = {
+              activeBranch: name,
+              branches: [name],
+            };
           }
         } else {
-          docBranchMap.value[currentFile.value].activeBranch = name
-          if (name !== 'main' && !docBranchMap.value[currentFile.value].branches.includes(name)) {
-            docBranchMap.value[currentFile.value].branches.push(name)
+          docBranchMap.value[currentFile.value].activeBranch = name;
+          if (
+            name !== "main" &&
+            !docBranchMap.value[currentFile.value].branches.includes(name)
+          ) {
+            docBranchMap.value[currentFile.value].branches.push(name);
           }
         }
-        await saveDocBranchMap()
+        await saveDocBranchMap();
         // Reload content for the current file on the new branch
-        const content = await api.files.read(workspacePath.value, currentFile.value)
-        currentContent.value = content || ''
-        isDirty.value = false
-        await loadCommitLog()
-        await loadDocVersions()
+        const content = await api.files.read(
+          workspacePath.value,
+          currentFile.value,
+        );
+        currentContent.value = content || "";
+        isDirty.value = false;
+        await loadCommitLog();
+        await loadDocVersions();
       }
     }
-    return result
+    return result;
   }
 
   async function mergeBranch(fromBranch, message) {
-    if (!workspacePath.value) return
-    const result = await api.git.merge(workspacePath.value, fromBranch, message)
+    if (!workspacePath.value) return;
+    const result = await api.git.merge(
+      workspacePath.value,
+      fromBranch,
+      message,
+    );
     if (result.success) {
       // Delete the merged branch
-      await api.git.deleteBranch(workspacePath.value, fromBranch)
+      await api.git.deleteBranch(workspacePath.value, fromBranch);
       // Clean up the doc branch manifest
-      let changed = false
+      let changed = false;
       for (const [filePath, info] of Object.entries(docBranchMap.value)) {
         if (info.branches && info.branches.includes(fromBranch)) {
-          info.branches = info.branches.filter(b => b !== fromBranch)
-          if (info.activeBranch === fromBranch) info.activeBranch = 'main'
-          if (info.branches.length === 0) delete docBranchMap.value[filePath]
-          changed = true
+          info.branches = info.branches.filter((b) => b !== fromBranch);
+          if (info.activeBranch === fromBranch) info.activeBranch = "main";
+          if (info.branches.length === 0) delete docBranchMap.value[filePath];
+          changed = true;
         }
       }
-      if (changed) await saveDocBranchMap()
-      await refreshBranches()
-      await refreshFiles()
+      if (changed) await saveDocBranchMap();
+      await refreshBranches();
+      await refreshFiles();
       // Reload current file content from main
       if (currentFile.value) {
-        const content = await api.files.read(workspacePath.value, currentFile.value)
-        currentContent.value = content || ''
-        isDirty.value = false
-        await loadCommitLog()
-        await loadDocVersions()
+        const content = await api.files.read(
+          workspacePath.value,
+          currentFile.value,
+        );
+        currentContent.value = content || "";
+        isDirty.value = false;
+        await loadCommitLog();
+        await loadDocVersions();
       }
     }
-    return result
+    return result;
   }
 
   async function loadCommitLog() {
-    if (!workspacePath.value || !currentFile.value) return
+    if (!workspacePath.value || !currentFile.value) return;
     try {
-      const docBranches = getDocBranches(currentFile.value)
+      const docBranches = getDocBranches(currentFile.value);
       // Include current branch (may be null/detached) plus doc-owned branches
-      const branchCandidates = [currentBranch.value, 'main', ...docBranches].filter(Boolean)
-      const branchList = Array.from(new Set(branchCandidates))
-      const result = await api.git.logAll(workspacePath.value, currentFile.value, branchList)
-      commitLog.value = result || []
+      const branchCandidates = [
+        currentBranch.value,
+        "main",
+        ...docBranches,
+      ].filter(Boolean);
+      const branchList = Array.from(new Set(branchCandidates));
+      const result = await api.git.logAll(
+        workspacePath.value,
+        currentFile.value,
+        branchList,
+      );
+      commitLog.value = result || [];
     } catch (err) {
-      console.warn('[loadCommitLog] logAll failed, falling back:', err)
+      console.warn("[loadCommitLog] logAll failed, falling back:", err);
       try {
-        commitLog.value = await api.git.log(workspacePath.value, currentFile.value) || []
+        commitLog.value =
+          (await api.git.log(workspacePath.value, currentFile.value)) || [];
       } catch {
-        commitLog.value = []
+        commitLog.value = [];
       }
     }
-    try { await checkFileStatus() } catch {}
+    try {
+      await checkFileStatus();
+    } catch {}
   }
 
   async function loadComments() {
-    if (!currentFile.value) return
-    const docId = currentFile.value.replace(/\//g, '_')
-    const saved = await api.comments.get(docId) || []
+    if (!currentFile.value) return;
+    const docId = currentFile.value.replace(/\//g, "_");
+    const saved = (await api.comments.get(docId)) || [];
     if (isDemoMode.value) {
-      const demoForFile = _demoComments.value[currentFile.value] || []
-      const now = Date.now()
+      const demoForFile = _demoComments.value[currentFile.value] || [];
+      const now = Date.now();
       const stamped = demoForFile.map((c, i) => ({
         ...c,
-        createdAt: c.createdAt || new Date(now - (i + 1) * 3600000 * 2).toISOString()
-      }))
-      const savedIds = new Set(saved.map(c => c.id))
-      const newDemo = stamped.filter(c => !savedIds.has(c.id))
-      comments.value = [...saved, ...newDemo]
+        createdAt:
+          c.createdAt || new Date(now - (i + 1) * 3600000 * 2).toISOString(),
+      }));
+      const savedIds = new Set(saved.map((c) => c.id));
+      const newDemo = stamped.filter((c) => !savedIds.has(c.id));
+      comments.value = [...saved, ...newDemo];
     } else {
-      comments.value = saved
+      comments.value = saved;
     }
   }
 
   async function addComment(comment) {
-    comments.value.push(comment)
-    await persistComments()
+    comments.value.push(comment);
+    await persistComments();
+    await logEvent("comment:add");
   }
 
   async function resolveComment(commentId) {
-    const c = comments.value.find(c => c.id === commentId)
-    if (c) c.resolved = true
-    await persistComments()
+    const c = comments.value.find((c) => c.id === commentId);
+    if (c) c.resolved = true;
+    await persistComments();
   }
 
   async function deleteComment(commentId) {
-    comments.value = comments.value.filter(c => c.id !== commentId)
-    await persistComments()
+    comments.value = comments.value.filter((c) => c.id !== commentId);
+    await persistComments();
   }
 
   async function persistComments() {
-    if (!currentFile.value) return
-    const docId = currentFile.value.replace(/\//g, '_')
-    await api.comments.save(docId, JSON.parse(JSON.stringify(comments.value)))
+    if (!currentFile.value) return;
+    const docId = currentFile.value.replace(/\//g, "_");
+    await api.comments.save(docId, JSON.parse(JSON.stringify(comments.value)));
   }
 
   async function loadDocVersions() {
-    if (!workspacePath.value || !currentFile.value) { docVersions.value = []; return }
-    docVersions.value = await api.versions.list(workspacePath.value, currentFile.value)
+    if (!workspacePath.value || !currentFile.value) {
+      docVersions.value = [];
+      return;
+    }
+    docVersions.value = await api.versions.list(
+      workspacePath.value,
+      currentFile.value,
+    );
   }
 
   async function saveDocVersion(name, message) {
-    if (!workspacePath.value || !currentFile.value) return
-    if (!commitLog.value.length) throw new Error('No commits yet — save a checkpoint first.')
-    const oid = commitLog.value[0].oid
-    docVersions.value = await api.versions.save(workspacePath.value, currentFile.value, name, oid, message)
-    return docVersions.value
+    if (!workspacePath.value || !currentFile.value) return;
+    if (!commitLog.value.length)
+      throw new Error("No commits yet — save a checkpoint first.");
+    const oid = commitLog.value[0].oid;
+    docVersions.value = await api.versions.save(
+      workspacePath.value,
+      currentFile.value,
+      name,
+      oid,
+      message,
+    );
+    await logEvent("version:save");
+    return docVersions.value;
   }
 
   async function deleteDocVersion(versionName) {
-    if (!workspacePath.value || !currentFile.value) return
-    await api.versions.delete(workspacePath.value, currentFile.value, versionName)
-    docVersions.value = docVersions.value.filter(v => v.name !== versionName)
+    if (!workspacePath.value || !currentFile.value) return;
+    await api.versions.delete(
+      workspacePath.value,
+      currentFile.value,
+      versionName,
+    );
+    docVersions.value = docVersions.value.filter((v) => v.name !== versionName);
   }
 
   async function restoreDocVersion(oid) {
-    if (!workspacePath.value || !currentFile.value) return
-    const content = await api.git.readCommit(workspacePath.value, currentFile.value, oid)
+    if (!workspacePath.value || !currentFile.value) return;
+    const content = await api.git.readCommit(
+      workspacePath.value,
+      currentFile.value,
+      oid,
+    );
     if (content !== null && content !== undefined) {
-      currentContent.value = content
-      isDirty.value = true
+      currentContent.value = content;
+      isDirty.value = true;
     }
   }
 
   async function forkDocument(branchName) {
-    const result = await createBranch(branchName)
+    const result = await createBranch(branchName);
     if (result?.success) {
-      await api.git.checkout(workspacePath.value, branchName)
-      currentBranch.value = branchName
+      await api.git.checkout(workspacePath.value, branchName);
+      currentBranch.value = branchName;
       // Record this branch as owned by the current document
       if (currentFile.value) {
         if (!docBranchMap.value[currentFile.value]) {
-          docBranchMap.value[currentFile.value] = { activeBranch: branchName, branches: [branchName] }
+          docBranchMap.value[currentFile.value] = {
+            activeBranch: branchName,
+            branches: [branchName],
+          };
         } else {
-          docBranchMap.value[currentFile.value].activeBranch = branchName
-          if (!docBranchMap.value[currentFile.value].branches.includes(branchName)) {
-            docBranchMap.value[currentFile.value].branches.push(branchName)
+          docBranchMap.value[currentFile.value].activeBranch = branchName;
+          if (
+            !docBranchMap.value[currentFile.value].branches.includes(branchName)
+          ) {
+            docBranchMap.value[currentFile.value].branches.push(branchName);
           }
         }
-        await saveDocBranchMap()
+        await saveDocBranchMap();
       }
     }
-    return result
+    return result;
   }
 
   async function enableDemoMode() {
-    const cfg = await fetch('/demo/config.json').then(r => r.json())
-    const defaultPath = await api.workspace.getDefault()
-    const parent = defaultPath.replace(/\/[^/]+$/, '')
-    const demoPath = `${parent}/${cfg.workspaceName}`
+    const cfg = await fetch("/demo/config.json").then((r) => r.json());
+    const defaultPath = await api.workspace.getDefault();
+    const parent = defaultPath.replace(/\/[^/]+$/, "");
+    const demoPath = `${parent}/${cfg.workspaceName}`;
 
-    _demoComments.value = cfg.comments || {}
-    demoPeers.value = cfg.peers || []
-    isDemoMode.value = true
+    _demoComments.value = cfg.comments || {};
+    demoPeers.value = cfg.peers || [];
+    isDemoMode.value = true;
 
-    await openWorkspace(demoPath, cfg.template || 'pm-framework')
+    await openWorkspace(demoPath, cfg.template || "pm-framework");
 
     if (cfg.files && workspacePath.value) {
       for (const [filePath, content] of Object.entries(cfg.files)) {
-        await api.files.write(workspacePath.value, filePath, content)
+        await api.files.write(workspacePath.value, filePath, content);
       }
-      await refreshFiles()
+      await refreshFiles();
     }
   }
 
   function disableDemoMode() {
-    isDemoMode.value = false
-    demoPeers.value = []
-    _demoComments.value = {}
-    comments.value = comments.value.filter(c => !c.isDemo)
+    isDemoMode.value = false;
+    demoPeers.value = [];
+    _demoComments.value = {};
+    comments.value = comments.value.filter((c) => !c.isDemo);
   }
 
   async function startShare(options) {
-    if (!workspacePath.value || !currentFile.value) return
-    const result = await api.share.start(workspacePath.value, currentFile.value, options)
-    if (result.success) shareInfo.value = result
-    return result
+    if (!workspacePath.value || !currentFile.value) return;
+    const result = await api.share.start(
+      workspacePath.value,
+      currentFile.value,
+      options,
+    );
+    if (result.success) {
+      shareInfo.value = result;
+      await logEvent("share:start", { scope: options.scope });
+    }
+    return result;
   }
 
   async function stopShare() {
-    if (!currentFile.value) return
-    await api.share.stop(currentFile.value)
-    shareInfo.value = null
+    if (!currentFile.value) return;
+    await api.share.stop(currentFile.value);
+    shareInfo.value = null;
   }
 
   async function searchDocs(query) {
-    const results = await api.search.query(query, workspacePath.value)
-    searchResults.value = results
-    return results
+    const results = await api.search.query(query, workspacePath.value);
+    searchResults.value = results;
+    return results;
+  }
+
+  async function logEvent(event, details = {}) {
+    if (!config.value) await loadConfig();
+    if (config.value?.telemetryEnabled) {
+      await api.telemetry.log(event, details);
+    }
   }
 
   return {
-    workspacePath, workspaceName, recentWorkspaces,
-    files, currentFile, currentContent, branches, currentBranch,
-    commitLog, comments, isDirty, fileIsUncommitted, isLoading, shareInfo, searchResults, config,
-    sidebarTab, rightPanelTab,
-    isDemoMode, demoPeers, docVersions, docBranchMap, currentDocBranch, trashItems,
-    loadConfig, saveConfig,
-    openWorkspace, refreshFiles, openFile, saveFile, createFile, renameFile,
-    deleteFile, createDirectory, deleteDirectory, moveFile, loadTrash, restoreFromTrash, purgeTrashItem,
-    commitFile, refreshBranches, createBranch, checkoutBranch, mergeBranch,
-    loadCommitLog, checkFileStatus, loadComments, addComment, resolveComment, deleteComment,
-    loadDocVersions, saveDocVersion, deleteDocVersion, restoreDocVersion, forkDocument,
-    getDocBranches, loadDocBranchMap, saveDocBranchMap,
-    startShare, stopShare, searchDocs,
-    enableDemoMode, disableDemoMode
-  }
-})
+    workspacePath,
+    workspaceName,
+    recentWorkspaces,
+    files,
+    currentFile,
+    currentContent,
+    branches,
+    currentBranch,
+    commitLog,
+    comments,
+    isDirty,
+    fileIsUncommitted,
+    isLoading,
+    shareInfo,
+    searchResults,
+    config,
+    sidebarTab,
+    rightPanelTab,
+    isDemoMode,
+    demoPeers,
+    docVersions,
+    docBranchMap,
+    currentDocBranch,
+    trashItems,
+    loadConfig,
+    saveConfig,
+    openWorkspace,
+    refreshFiles,
+    openFile,
+    saveFile,
+    createFile,
+    renameFile,
+    deleteFile,
+    createDirectory,
+    deleteDirectory,
+    moveFile,
+    loadTrash,
+    restoreFromTrash,
+    purgeTrashItem,
+    commitFile,
+    refreshBranches,
+    createBranch,
+    checkoutBranch,
+    mergeBranch,
+    loadCommitLog,
+    checkFileStatus,
+    loadComments,
+    addComment,
+    resolveComment,
+    deleteComment,
+    loadDocVersions,
+    saveDocVersion,
+    deleteDocVersion,
+    restoreDocVersion,
+    forkDocument,
+    getDocBranches,
+    loadDocBranchMap,
+    saveDocBranchMap,
+    startShare,
+    stopShare,
+    searchDocs,
+    enableDemoMode,
+    disableDemoMode,
+    logEvent,
+  };
+});

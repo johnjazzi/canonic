@@ -19,8 +19,11 @@
 - [ ] **add a terminal** in the ui that lets you run cli commands for the workspace.
 - [ ] **[AI AGENT] kick off claude code** be able start/continue claude code session with the changes you made to the doucment. i.e. hey I changed this requirements can you update the app to reflect it? 
 - [x] **show commits** checkpoint commits per file with history panel; uncommitted/unsaved indicators; branch/merge shown in history; inline diff on click (changed lines only).
+- [ ] **Usage logging** — explicitly turned off by default; user prompted at setup to opt-in/out. Track key interactions to improve UX.
 - [ ] **Collapsible sidebar** — toggle button collapses left sidebar to icon-only strip (~40px); persist state in localStorage. *(MainLayout + FileTree, UI only)*
 - [x] **Create directories** — "New folder" in FileTree header + inline in TreeNode; rename/delete/move all work on directory nodes. Soft-delete trash bin with restore + permanent delete.
+- [x] **Move folders into other folders** — expand move functionality to support nesting directories within other directories.
+- [x] **Drag and drop support** — make files and folders drag/droppable in the FileTree for intuitive reorganization.
 - [ ] **Shared / connected documents in browser** — peer docs section with display name, last-synced timestamp, online/offline indicator; clicking opens read-only from `~/.canonic/peers/`; refresh triggers `git fetch`. *(PeersPanel + peer sync in share.js + mDNS in main.js)*
 - [ ] **Sharing version radio** — when sharing a doc or workspace, let the user choose what the recipient sees: *Current WIP* (live file on disk), *Last committed* (HEAD of current branch), or *Main only* (always the `main` branch). Stored in `sharingDefaults` config and overridable per-share in ShareModal. *(ShareModal + share.js + config)*
 - [ ] **Pre-index workspace docs on every AI call** — gather full text of every `.md` file, pass as `<workspace>` XML block in system prompt (~500 tokens/file, cap ~80k total). *(AIChat.vue — expand `docContext`)*
@@ -31,6 +34,15 @@
 - [ ] **Agent comments** — agent posts `{ type: "comment", anchor: { quotedText: "..." }, text: "..." }` into CommentsPanel attributed as "Claude · suggestion"; resolvable; not re-suggested once resolved. *(AIChat.vue + store.addComment() + CommentsPanel)*
 - [ ] **Agent usage stats** — message count + token estimate (chars/4) in compact bar; warn near 80k; use real `usage` field from `message_stop` event long-term. *(AIChat.vue — partially done)*
 - [ ] **Agent abilities UI** — "Agent tools" section in AI panel; toggle switches per capability; "Indexed N documents" status indicator. *(AIChat.vue + store)*
+
+---
+
+## Updates & Deployment
+- [x] **Manual update check** — "Check for Updates" button in Settings > Profile.
+- [x] **Periodic update checks** — Check every 4 hours while app is running.
+- [x] **Ask before close** — Prompt to "Update and Close" if a download is ready.
+- [x] **Interactive download** — Prompt user to start download when update is available (rather than always silent).
+- [x] **Download progress** — Show progress bar/status in the update banner.
 
 ---
 

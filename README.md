@@ -55,6 +55,33 @@ npm run build
 ```
 The output will be placed in the `dist-electron` directory.
 
+## Deployment & Updates
+
+Canonic is packaged and distributed using [electron-builder](https://www.electronjs.org/docs/latest/tutorial/deployment).
+
+### Deployment Flow
+
+1.  **Build**: Run `npm run build` to generate the production-ready assets and the Electron executable.
+2.  **Publish**: The CI/CD pipeline (or manual run) pushes the generated artifacts to **GitHub Releases** as defined in `package.json`.
+    - Provider: `github`
+    - Repository: `johnazzinaro/canonic`
+
+### Update Mechanism
+
+Updates are handled automatically via [electron-updater](https://www.electronjs.org/docs/latest/tutorial/updates).
+
+-   **Check on Launch**: Every time the app starts, it checks for a new version on GitHub.
+-   **User Notification**: If a new version is found and downloaded, a banner appears at the bottom of the screen prompting the user to "Restart & Update."
+-   **Silent Backgrounding**: Downloads happen in the background to avoid interrupting the user's flow.
+
+### Planned Improvements
+
+-   **Interactive Check on Open**: Instead of just silent checks, explicitly prompt the user if an update is found immediately after launch.
+-   **Periodic Checks**: Regularly check for updates while the app is open (e.g., every 4 hours).
+-   **Ask Before Close**: If an update is ready but hasn't been installed, prompt the user to "Update and Close" when they try to exit the app.
+-   **Manual Check**: Add a "Check for Updates" button in the Settings menu.
+-   **Download Progress**: Show a progress bar for background downloads to keep the user informed.
+
 ## Project Structure
 
 - `src/` - Vue frontend source code

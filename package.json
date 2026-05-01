@@ -2,6 +2,7 @@
   "name": "canonic",
   "version": "0.1.0",
   "description": "Local-first markdown document editor with git versioning",
+  "author": "John Azzinaro",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite --port 5173\" \"wait-on http://localhost:5173 && electron .\"",
@@ -20,6 +21,7 @@
     "@milkdown/vue": "^7.5.0",
     "@vueuse/core": "^10.11.0",
     "bonjour-service": "^1.2.1",
+    "call-bind-apply-helpers": "^1.0.2",
     "electron-updater": "^6.8.3",
     "express": "^4.21.2",
     "flexsearch": "^0.8.212",
@@ -46,7 +48,9 @@
   "build": {
     "appId": "ai.canonic.app",
     "productName": "Canonic",
-    "icon": "public/canonical-logo.svg",
+    "icon": "build/icons/icon.png",
+    "asar": false,
+    "afterPack": "./afterPack.js",
     "directories": {
       "output": "dist-electron"
     },
