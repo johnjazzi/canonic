@@ -61,6 +61,11 @@
             >
         </div>
 
+        <!-- Workspace index status -->
+        <div v-if="store.workspacePath && indexedDocCount > 0" class="index-bar">
+            <span class="index-stat">Indexed {{ indexedDocCount }} doc{{ indexedDocCount !== 1 ? 's' : '' }}</span>
+        </div>
+
         <div class="chat-input-area">
             <textarea
                 v-model="userInput"
@@ -95,6 +100,7 @@ const streaming = ref(false);
 const streamBuffer = ref("");
 
 const sessionStats = ref({ messages: 0, approxTokens: 0 });
+const indexedDocCount = ref(0);
 
 const getApiKey = () => store.config?.apiKey;
 const getModel = () => store.config?.model || "anthropic/claude-sonnet-4-5";
@@ -137,6 +143,62 @@ function handleEnter(e) {
 function sendSuggestion(text) {
     userInput.value = text;
     sendMessage();
+}
+
+const MAX_WORKSPACE_CHARS = 80000;
+
+async function buildWorkspaceBlock() {
+    const workspacePath = store.workspacePath;
+    if (!workspacePath) return "";
+
+    let allFiles;
+    try {
+        allFiles = await window.canonic.files.list(workspacePath);
+    } catch (e) {
+        if (import.meta.env.DEV) console.warn("[AIChat] Could not list workspace files:", e);
+        return "";
+    }
+
+    const mdFiles = (allFiles || []).filter((f) => {
+        const name = typeof f === "string" ? f : f.path || f.name || "";
+        return name.endsWith(".md");
+    });
+
+    indexedDocCount.value = mdFiles.length;
+    if (mdFiles.length === 0) return "";
+
+    let parts = [];
+    let totalChars = 0;
+    let truncated = false;
+
+    for (const f of mdFiles) {
+        const filePath = typeof f === "string" ? f : f.path || f.name || "";
+        if (!filePath) continue;
+
+        let content = "";
+        try {
+            content = await window.canonic.files.read(workspacePath, filePath);
+        } catch (e) {
+            if (import.meta.env.DEV) console.warn("[AIChat] Could not read file:", filePath, e);
+            continue;
+        }
+
+        const entry = `<document path="${filePath}">\n${content}\n</document>`;
+        if (totalChars + entry.length > MAX_WORKSPACE_CHARS) {
+            truncated = true;
+            break;
+        }
+        parts.push(entry);
+        totalChars += entry.length;
+    }
+
+    if (parts.length === 0) return "";
+
+    const truncatedNote = truncated
+        ? "\n<!-- Workspace context truncated at 80,000 characters. Some documents were omitted. -->"
+        : "";
+
+    return `\n\n<workspace>\n${parts.join("\n")}\n</workspace>${truncatedNote}`;
 }
 
 async function sendMessage() {
@@ -213,18 +275,21 @@ async function sendMessage() {
         ? `\n\n<document>\n${store.currentContent.slice(0, 4000)}\n</document>`
         : "";
 
+    const workspaceBlock = await buildWorkspaceBlock();
+
     if (import.meta.env.DEV) {
         console.log("[AIChat] Request params:", {
             model: getModel(),
             baseUrl: getBaseUrl(),
             messageCount: contextMessages.length,
             hasKey: !!apiKey,
+            indexedDocs: indexedDocCount.value,
         });
     }
 
     window.canonic.ai.chat({
         messages: contextMessages,
-        system: SYSTEM_PROMPT + docContext,
+        system: SYSTEM_PROMPT + workspaceBlock + docContext,
         model: getModel(),
         apiKey,
         baseUrl: getBaseUrl(),
@@ -371,6 +436,21 @@ onUnmounted(() => {
     font-size: 0.6875rem;
     color: #f59e0b;
     margin-left: 2px;
+}
+
+.index-bar {
+    display: flex;
+    align-items: center;
+    padding: 3px 12px;
+    background: var(--bg-base);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.index-stat {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    opacity: 0.7;
 }
 
 .chat-input-area {
