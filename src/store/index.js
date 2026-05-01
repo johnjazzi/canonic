@@ -15,6 +15,7 @@ export const useAppStore = defineStore("app", () => {
   const commitLog = ref([]);
   const comments = ref([]);
   const isDirty = ref(false);
+  const unsavedBuffer = ref({});
   const fileIsUncommitted = ref(false);
   const isLoading = ref(false);
   const shareInfo = ref(null);
@@ -283,8 +284,22 @@ export const useAppStore = defineStore("app", () => {
     files.value = await api.files.list(workspacePath.value);
   }
 
+  function clearUnsaved(filePath) {
+    const buffer = { ...unsavedBuffer.value };
+    delete buffer[filePath];
+    unsavedBuffer.value = buffer;
+  }
+
   async function openFile(filePath) {
     if (!workspacePath.value) return;
+
+    // Buffer unsaved changes for the file we're leaving
+    if (isDirty.value && currentFile.value) {
+      unsavedBuffer.value = {
+        ...unsavedBuffer.value,
+        [currentFile.value]: currentContent.value,
+      };
+    }
 
     // Switch to the branch this document is on
     const docBranch = docBranchMap.value[filePath]?.activeBranch || "main";
@@ -293,15 +308,23 @@ export const useAppStore = defineStore("app", () => {
       if (result.success) currentBranch.value = docBranch;
     }
 
-    const content = await api.files.read(workspacePath.value, filePath);
+    const diskContent = await api.files.read(workspacePath.value, filePath);
     currentFile.value = filePath;
-    currentContent.value = content || "";
-    isDirty.value = false;
+
+    // Prefer buffered unsaved content over disk content
+    if (unsavedBuffer.value[filePath] !== undefined) {
+      currentContent.value = unsavedBuffer.value[filePath];
+      isDirty.value = true;
+    } else {
+      currentContent.value = diskContent || "";
+      isDirty.value = false;
+    }
+
     await loadComments();
     await loadCommitLog();
     await loadDocVersions();
-    if (content) {
-      api.search.index(workspacePath.value, filePath, content);
+    if (diskContent) {
+      api.search.index(workspacePath.value, filePath, diskContent);
     }
     await logEvent("file:open");
   }
@@ -311,6 +334,7 @@ export const useAppStore = defineStore("app", () => {
     await api.files.write(workspacePath.value, currentFile.value, content);
     currentContent.value = content;
     isDirty.value = false;
+    clearUnsaved(currentFile.value);
     api.search.index(workspacePath.value, currentFile.value, content);
     await checkFileStatus();
   }
@@ -666,6 +690,7 @@ export const useAppStore = defineStore("app", () => {
     commitLog,
     comments,
     isDirty,
+    unsavedBuffer,
     fileIsUncommitted,
     isLoading,
     shareInfo,
@@ -687,6 +712,7 @@ export const useAppStore = defineStore("app", () => {
     refreshFiles,
     openFile,
     saveFile,
+    clearUnsaved,
     createFile,
     renameFile,
     deleteFile,

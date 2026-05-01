@@ -701,6 +701,32 @@ onMounted(() => {
   text-underline-offset: 2px;
 }
 
+/* Tables */
+.milkdown .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+  font-size: 0.875rem;
+}
+
+.milkdown .ProseMirror th,
+.milkdown .ProseMirror td {
+  border: 1px solid var(--border-mid);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.milkdown .ProseMirror th {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.milkdown .ProseMirror tr:nth-child(even) td {
+  background: var(--bg-hover);
+}
+
 /* Comment highlights */
 .comment-highlight {
   background: rgba(251, 191, 36, 0.18);
