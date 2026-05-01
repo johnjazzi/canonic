@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const configService = require('./config')
+const { parseApiError } = require('./aiUtils')
 const versionsService = require('./versions')
 const { autoUpdater } = require('electron-updater')
 
@@ -443,6 +444,7 @@ function setupIpcHandlers() {
       return
     }
     const base = (baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '')
+    console.log('[ai:chat] request → baseUrl:', base, '| model:', model, '| key present:', !!apiKey, '| key length:', apiKey?.length)
     const allMessages = system ? [{ role: 'system', content: system }, ...messages] : messages
     try {
       const response = await fetch(`${base}/chat/completions`, {
@@ -455,8 +457,9 @@ function setupIpcHandlers() {
       })
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        event.sender.send('ai:error', err.error?.message || `API error ${response.status}`)
+        const rawBody = await response.text().catch(() => '')
+        console.error('[ai:chat] error response → status:', response.status, '| body:', rawBody)
+        event.sender.send('ai:error', parseApiError(response.status, rawBody))
         return
       }
 
