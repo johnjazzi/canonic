@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed, watch } from "vue";
+import { ref, reactive, computed, watch } from "vue";
 
 export const useAppStore = defineStore("app", () => {
   const workspacePath = ref(null);
@@ -15,7 +15,7 @@ export const useAppStore = defineStore("app", () => {
   const commitLog = ref([]);
   const comments = ref([]);
   const isDirty = ref(false);
-  const unsavedBuffer = ref({});
+  const unsavedBuffer = reactive({});
   const fileIsUncommitted = ref(false);
   const isLoading = ref(false);
   const shareInfo = ref(null);
@@ -285,9 +285,7 @@ export const useAppStore = defineStore("app", () => {
   }
 
   function clearUnsaved(filePath) {
-    const buffer = { ...unsavedBuffer.value };
-    delete buffer[filePath];
-    unsavedBuffer.value = buffer;
+    delete unsavedBuffer[filePath];
   }
 
   async function openFile(filePath) {
@@ -295,10 +293,7 @@ export const useAppStore = defineStore("app", () => {
 
     // Buffer unsaved changes for the file we're leaving
     if (isDirty.value && currentFile.value) {
-      unsavedBuffer.value = {
-        ...unsavedBuffer.value,
-        [currentFile.value]: currentContent.value,
-      };
+      unsavedBuffer[currentFile.value] = currentContent.value;
     }
 
     // Switch to the branch this document is on
@@ -312,8 +307,8 @@ export const useAppStore = defineStore("app", () => {
     currentFile.value = filePath;
 
     // Prefer buffered unsaved content over disk content
-    if (unsavedBuffer.value[filePath] !== undefined) {
-      currentContent.value = unsavedBuffer.value[filePath];
+    if (unsavedBuffer[filePath] !== undefined) {
+      currentContent.value = unsavedBuffer[filePath];
       isDirty.value = true;
     } else {
       currentContent.value = diskContent || "";
