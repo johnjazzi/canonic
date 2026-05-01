@@ -1,15 +1,16 @@
 # Canonic
 
-A local-first markdown document editor with Git versioning, built for seamless documentation and product management. Canonic features a built-in AI assistant to help you think through requirements and ideas, without writing them for you.
+A local-first markdown document editor with Git versioning, built for seamless documentation. Canonic features a built-in AI assistant to help you think through requirements and ideas, without writing them for you. designed for people who want to do their own thinking first before building. inspire by the beauty of git, the tactileness of Zed and Atom before it, the sharing p2p sharing of local send
 
 ## Features
 
 - **Local-first Architecture**: All your files stay on your machine.
 - **Git Version Control**: Document versioning built-in. Every workspace is a Git repository, allowing branching, history, and conflict resolution directly within the app.
-- **AI Assistant**: Context-aware AI assistant designed to help you brainstorm and review, configurable with different models (requires an Anthropic API key).
+- **AI Assistant**: Context-aware AI assistant designed to help you brainstorm and review, configurable with different models (requires an LLM API key).
 - **Workspace Templates**: Start with a blank canvas or jumpstart your projects with structured templates like the PM Framework.
 - **Sharing Scope & Permissions**: Share securely via token-secured links with granular access controls (file, directory, or workspace level).
 - **Inline Comments**: Anchor comments to specific document selections to collaborate effectively.
+- **Featureful editor**: allows for refs, tags, tracking, and other fun stuff help you keep track of interdependencies
 
 ## Tech Stack
 
