@@ -582,7 +582,7 @@ onMounted(() => {
 
 .milkdown .ProseMirror {
   outline: none;
-  font-family: 'Georgia', ui-serif, serif;
+  font-family: inherit;
   font-size: 0.9375rem;
   line-height: 1.8;
   color: var(--text-primary);
