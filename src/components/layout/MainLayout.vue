@@ -25,14 +25,17 @@
         <!-- Main content -->
         <div class="content">
             <!-- Left sidebar -->
-            <aside class="sidebar">
+            <aside
+                class="sidebar"
+                :class="{ 'sidebar--collapsed': store.sidebarCollapsed }"
+            >
                 <div class="sidebar-tabs">
                     <button
                         :class="[
                             'tab',
                             store.sidebarTab === 'files' && 'active',
                         ]"
-                        @click="store.sidebarTab = 'files'"
+                        @click="handleTabClick('files')"
                         title="Files"
                     >
                         <Files :size="15" />
@@ -42,7 +45,7 @@
                             'tab',
                             store.sidebarTab === 'search' && 'active',
                         ]"
-                        @click="store.sidebarTab = 'search'"
+                        @click="handleTabClick('search')"
                         title="Search"
                     >
                         <Search :size="15" />
@@ -52,17 +55,34 @@
                             'tab',
                             store.sidebarTab === 'peers' && 'active',
                         ]"
-                        @click="store.sidebarTab = 'peers'"
+                        @click="handleTabClick('peers')"
                         title="Shared with me"
                         v-if="store.isDemoMode || store.demoPeers.length"
                     >
                         <Users :size="15" />
                     </button>
+                    <button
+                        class="tab sidebar-toggle"
+                        :title="
+                            store.sidebarCollapsed
+                                ? 'Expand sidebar'
+                                : 'Collapse sidebar'
+                        "
+                        @click="store.sidebarCollapsed = !store.sidebarCollapsed"
+                    >
+                        <PanelLeftClose
+                            v-if="!store.sidebarCollapsed"
+                            :size="15"
+                        />
+                        <PanelLeftOpen v-else :size="15" />
+                    </button>
                 </div>
 
-                <FileTree v-if="store.sidebarTab === 'files'" />
-                <SearchPanel v-else-if="store.sidebarTab === 'search'" />
-                <PeersPanel v-else-if="store.sidebarTab === 'peers'" />
+                <template v-if="!store.sidebarCollapsed">
+                    <FileTree v-if="store.sidebarTab === 'files'" />
+                    <SearchPanel v-else-if="store.sidebarTab === 'search'" />
+                    <PeersPanel v-else-if="store.sidebarTab === 'peers'" />
+                </template>
             </aside>
 
             <!-- Editor -->
@@ -167,7 +187,14 @@
 import { ref, provide, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAppStore } from "../../store";
-import { Settings, Files, Search, Users } from "lucide-vue-next";
+import {
+    Settings,
+    Files,
+    Search,
+    Users,
+    PanelLeftClose,
+    PanelLeftOpen,
+} from "lucide-vue-next";
 import FileTree from "../sidebar/FileTree.vue";
 import SearchPanel from "../sidebar/SearchPanel.vue";
 import PeersPanel from "../sidebar/PeersPanel.vue";
@@ -249,6 +276,15 @@ function clearUpdate() {
 
 async function newDoc() {
     showNewDoc.value = true;
+}
+
+function handleTabClick(tab) {
+    if (store.sidebarCollapsed) {
+        store.sidebarCollapsed = false;
+        store.sidebarTab = tab;
+    } else {
+        store.sidebarTab = tab;
+    }
 }
 </script>
 
@@ -353,6 +389,11 @@ async function newDoc() {
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border);
     overflow: hidden;
+    transition: width 0.2s ease;
+}
+
+.sidebar--collapsed {
+    width: 40px;
 }
 
 .sidebar-tabs {
@@ -360,6 +401,21 @@ async function newDoc() {
     padding: 8px;
     gap: 4px;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.sidebar--collapsed .sidebar-tabs {
+    flex-direction: column;
+    padding: 4px;
+    gap: 2px;
+}
+
+.sidebar-toggle {
+    margin-left: auto;
+}
+
+.sidebar--collapsed .sidebar-toggle {
+    margin-left: 0;
 }
 
 .tab {

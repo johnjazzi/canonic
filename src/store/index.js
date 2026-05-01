@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 
 export const useAppStore = defineStore("app", () => {
   const workspacePath = ref(null);
@@ -22,6 +22,12 @@ export const useAppStore = defineStore("app", () => {
   const config = ref(null);
   const sidebarTab = ref("files");
   const rightPanelTab = ref("comments");
+  const sidebarCollapsed = ref(
+    localStorage.getItem("canonic:sidebarCollapsed") === "true",
+  );
+  watch(sidebarCollapsed, (val) => {
+    localStorage.setItem("canonic:sidebarCollapsed", String(val));
+  });
   const docVersions = ref([]);
   const docBranchMap = ref({}); // { 'path/to/file.md': { activeBranch: 'branch', branches: ['branch'] } }
 
@@ -661,6 +667,7 @@ export const useAppStore = defineStore("app", () => {
     config,
     sidebarTab,
     rightPanelTab,
+    sidebarCollapsed,
     isDemoMode,
     demoPeers,
     docVersions,
