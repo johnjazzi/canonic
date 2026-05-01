@@ -28,6 +28,12 @@ export const useAppStore = defineStore("app", () => {
   watch(sidebarCollapsed, (val) => {
     localStorage.setItem("canonic:sidebarCollapsed", String(val));
   });
+  const rightPanelCollapsed = ref(
+    localStorage.getItem("canonic:rightPanelCollapsed") === "true",
+  );
+  watch(rightPanelCollapsed, (val) => {
+    localStorage.setItem("canonic:rightPanelCollapsed", String(val));
+  });
   const docVersions = ref([]);
   const docBranchMap = ref({}); // { 'path/to/file.md': { activeBranch: 'branch', branches: ['branch'] } }
 
@@ -668,6 +674,7 @@ export const useAppStore = defineStore("app", () => {
     sidebarTab,
     rightPanelTab,
     sidebarCollapsed,
+    rightPanelCollapsed,
     isDemoMode,
     demoPeers,
     docVersions,
